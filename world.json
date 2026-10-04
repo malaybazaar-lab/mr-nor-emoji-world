@@ -1,5 +1,5 @@
 {
-  "_help": "Edit this file to upgrade the school, then restart the server. Coordinates are in TILES (1 tile = 32px). Map origin (0,0) is top-left. Solid things: buildings, trees, bushes, lamps, walls. See README.md.",
+  "_help": "Edit this file to upgrade the school, then restart the server. Coordinates are in TILES (1 tile = 32px). Map origin (0,0) is top-left. Solid things: buildings, trees, bushes, lamps, walls. See README.md. 'objects' holds the MISSION BOARD (solid; walk up and press A).",
   "title": "Mr Nor DnT - School of Design and Technology - Emoji World",
   "width": 64,
   "height": 44,
@@ -194,5 +194,16 @@
     ]
   ],
   "flowers": [],
-  "walls": []
+  "walls": [],
+  "objects": [
+    {
+      "id": "board",
+      "type": "mission_board",
+      "x": 31,
+      "y": 16,
+      "w": 2,
+      "h": 1,
+      "label": "MISSION BOARD"
+    }
+  ]
 }

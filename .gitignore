@@ -5,3 +5,4 @@ logs/
 *.tar.gz
 .env
 .DS_Store
+data/

@@ -11,7 +11,7 @@ const PAL = {
   acc: ['∅', '👓', '🎀', '🎧', '👑'],
 };
 const BLOCKED = new Set(['🖕', '🍆', '🍑', '💦', '👅', '🔞']);
-const SOLID = new Set([2, 3, 4, 5, 8]);
+let SOLID = new Set([2, 3, 4, 5, 8, 9]);
 const seg = new Intl.Segmenter('en', { granularity: 'grapheme' });
 let RGI; try { RGI = new RegExp('^\\p{RGI_Emoji}$', 'v'); } catch { RGI = /^(\p{Extended_Pictographic}|\p{Regional_Indicator})/u; }
 const isEmoji = (g) => (RGI.test(g) || RGI.test(g + '\uFE0F')) && !BLOCKED.has(g.replace(/\uFE0F/g, ''));
@@ -134,6 +134,14 @@ function buildWorld() {
   }
   // buildings
   for (const b of MAP.buildings) drawBuilding(g, b);
+  // mission board(s): pre-rendered sprite, drawn depth-sorted with players in render()
+  sprites = [];
+  for (const o of MAP.objects || []) if (o.type === 'mission_board') {
+    const sc = document.createElement('canvas'), ow = (o.w || 2) * TILE; sc.width = ow + 16; sc.height = TILE + 52;
+    const sg = sc.getContext('2d'); sg.imageSmoothingEnabled = false;
+    drawBoard(sg, { ...o, x: 0, y: 0 }, 8, 50);
+    sprites.push({ c: sc, x: o.x * TILE - 8, y: o.y * TILE - 50, base: (o.y + (o.h || 1)) * TILE });
+  }
   // objects sorted top->bottom
   for (let ty = 0; ty < MAP.h; ty++) for (let tx = 0; tx < MAP.w; tx++) {
     const v = tileAt(tx, ty), X = tx * TILE, Y = ty * TILE;
@@ -164,6 +172,38 @@ function drawLamp(g, X, Y) {
   g.fillStyle = '#1d2340'; g.fillRect(X + 9, Y + 22, 14, 8); g.fillRect(X + 12, Y - 16, 8, 40); g.fillRect(X + 6, Y - 32, 20, 18);
   g.fillStyle = '#2f5fd0'; g.fillRect(X + 11, Y + 24, 10, 4); g.fillRect(X + 14, Y - 14, 4, 38); g.fillRect(X + 8, Y - 30, 16, 4); g.fillRect(X + 8, Y - 18, 16, 3);
   g.fillStyle = '#ffe36a'; g.fillRect(X + 9, Y - 26, 14, 8); g.fillStyle = '#fff6c0'; g.fillRect(X + 11, Y - 25, 4, 4);
+}
+let sprites = [];
+function drawBoard(g, o, ox = 0, oy = 0) {
+  // pixel-art notice board: 2 posts + framed cork board rising above its 1-tile footprint
+  const X = o.x * TILE + ox, Y = o.y * TILE + oy, Wd = (o.w || 2) * TILE;
+  g.fillStyle = 'rgba(0,0,0,.2)'; g.fillRect(X + 2, Y + 22, Wd - 4, 10);
+  g.fillStyle = '#1d2340'; g.fillRect(X + 6, Y - 6, 10, 34); g.fillRect(X + Wd - 16, Y - 6, 10, 34);
+  g.fillStyle = '#8a5a2b'; g.fillRect(X + 8, Y - 4, 6, 30); g.fillRect(X + Wd - 14, Y - 4, 6, 30);
+  const bx = X - 4, by = Y - 44, bw = Wd + 8, bh = 50;
+  g.fillStyle = '#1d2340'; g.fillRect(bx, by, bw, bh);
+  g.fillStyle = '#b06a30'; g.fillRect(bx + 3, by + 3, bw - 6, bh - 6);
+  g.fillStyle = '#d9a35f'; g.fillRect(bx + 7, by + 15, bw - 14, bh - 22);
+  for (let i = 0; i < 18; i++) { g.fillStyle = hash(i, 7) > 0.5 ? '#c98f4c' : '#e6b673'; g.fillRect(bx + 8 + Math.floor(hash(i, 3) * (bw - 18)), by + 16 + Math.floor(hash(3, i) * (bh - 26)), 2, 2); }
+  // title strip
+  g.fillStyle = '#ffcf3f'; g.fillRect(bx + 5, by + 4, bw - 10, 10);
+  g.fillStyle = '#1d2340'; g.font = 'bold 9px "Courier New", monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(o.label || 'MISSION BOARD', bx + bw / 2, by + 9.5);
+  // pinned notes
+  const notes = [['#ffffff', 10, 19], ['#ff9ad0', 30, 22], ['#9fd3ff', 50, 18]];
+  for (const [c, nx, ny] of notes) { g.fillStyle = '#1d2340'; g.fillRect(bx + nx - 1, by + ny - 1, 14, 14); g.fillStyle = c; g.fillRect(bx + nx, by + ny, 12, 12); g.fillStyle = '#c0263c'; g.fillRect(bx + nx + 5, by + ny + 1, 2, 2); g.fillStyle = '#8890a8'; g.fillRect(bx + nx + 2, by + ny + 6, 8, 1); g.fillRect(bx + nx + 2, by + ny + 9, 6, 1); }
+  g.font = '12px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; g.fillText('❓', bx + bw - 10, by + 38);
+}
+const BOARD_REACH = 48;
+function nearBoard() {
+  if (!MAP || !me) return null;
+  for (const o of MAP.objects || []) {
+    if (o.type !== 'mission_board') continue;
+    const x0 = o.x * TILE, y0 = o.y * TILE, x1 = (o.x + (o.w || 1)) * TILE, y1 = (o.y + (o.h || 1)) * TILE;
+    const dx = Math.max(x0 - me.x, 0, me.x - x1), dy = Math.max(y0 - me.y, 0, me.y - y1);
+    if (Math.hypot(dx, dy) <= BOARD_REACH - 4) return o;
+  }
+  return null;
 }
 function drawBuilding(g, b) {
   const X = b.x * TILE, Y = b.y * TILE, Wd = b.w * TILE, Ht = b.h * TILE;
@@ -251,6 +291,7 @@ function onMsg(m) {
     case 'full': wasFull = true; $('joinerr').textContent = 'World is full (100 players). Try later!'; break;
     case 'welcome': {
       myId = m.id; MAP = m.map; TILE = MAP.tile; SPEED = m.speed; MAXE = m.maxEmojis;
+      if (Array.isArray(MAP.solid)) SOLID = new Set(MAP.solid);
       if (MAP.title) document.title = MAP.title;
       buildWorld();
       players.clear();
@@ -278,6 +319,7 @@ function onMsg(m) {
     }
     case 'emote': { const p = players.get(m.id); if (p) { p.waveUntil = performance.now() + 2000; p.bubble = { text: '👋', until: performance.now() + 2000 }; } break; }
     case 'reject': toast('🚫 ' + m.reason); break;
+    default: if (m.t && m.t.startsWith('m_')) missionMsg(m);
   }
 }
 function updateCount() { $('count').textContent = `👥 ${players.size}`; }
@@ -347,8 +389,14 @@ msg.addEventListener('keydown', (e) => {
   else if (e.key === 'Escape') { msg.blur(); togglePicker(false); }
   e.stopPropagation();
 });
-function pressA() { if (!myId) return; if (pickerOpen()) { if (msg.value) sendChat(); togglePicker(false); } else togglePicker(true); }
-function pressB() { if (!myId) return; if (pickerOpen()) { togglePicker(false); return; } wave(); }
+function pressA() {
+  if (!myId) return;
+  if (menuOpen()) { menuActivate(); return; }
+  if (pickerOpen()) { if (msg.value) sendChat(); togglePicker(false); }
+  else if (nearBoard()) openMission('board');
+  else togglePicker(true);
+}
+function pressB() { if (!myId) return; if (menuOpen()) { closeMenu(); return; } if (pickerOpen()) { togglePicker(false); return; } wave(); }
 let lastWave = 0;
 function wave() {
   if (performance.now() - lastWave < 1500 || !ws || ws.readyState !== 1) return;
@@ -359,6 +407,14 @@ function wave() {
 addEventListener('keydown', (e) => {
   if (!myId || e.target === $('name')) return;
   const k = e.key.toLowerCase();
+  if (menuOpen()) {
+    e.preventDefault();
+    if (k === 'z' || k === 'enter' || k === ' ') pressA();
+    else if (k === 'x' || k === 'escape') closeMenu();
+    else if (k === 'arrowup' || k === 'w' || k === 'arrowleft' || k === 'a') menuMove(-1);
+    else if (k === 'arrowdown' || k === 's' || k === 'arrowright' || k === 'd') menuMove(1);
+    return;
+  }
   if (k === 'z') { pressA(); return; }
   if (k === 'x') { pressB(); return; }
   if (k === 'enter') { msg.focus(); togglePicker(true); e.preventDefault(); return; }
@@ -392,7 +448,7 @@ for (const [id, fn] of [['btnA', pressA], ['btnB', pressB]]) {
 }
 // block page zoom / scroll gestures
 for (const ev of ['gesturestart', 'gesturechange', 'dblclick']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
-document.addEventListener('touchmove', (e) => { if (!e.target.closest('#grid,#log,#tabs,#quick,#join')) e.preventDefault(); }, { passive: false });
+document.addEventListener('touchmove', (e) => { if (!e.target.closest('#grid,#log,#tabs,#quick,#join,#mpanel,#mstrip')) e.preventDefault(); }, { passive: false });
 let lastTouchEnd = 0;
 document.addEventListener('touchend', (e) => { const n = Date.now(); if (n - lastTouchEnd < 300 && !e.target.closest('input,button,#grid,#qrow,#tabs')) e.preventDefault(); lastTouchEnd = n; }, { passive: false });
 document.addEventListener('contextmenu', (e) => { if (e.target.closest('#pad,canvas')) e.preventDefault(); });
@@ -411,6 +467,13 @@ let last = performance.now();
 function update(dt, now) {
   if (!me) return;
   let ix = 0, iy = 0;
+  if (menuOpen()) { // D-pad navigates the mission panel instead of walking
+    const ny = pad.y || pad.x;
+    if (ny && (ny !== padNav.v || now - padNav.t > 350)) { menuMove(ny > 0 ? 1 : -1); padNav.t = now; }
+    padNav.v = ny;
+    me.moving = false; if (lastMoving && ws && ws.readyState === 1) { wsSend(JSON.stringify({ t: 'move', x: me.x, y: me.y, dir: me.dir, moving: false })); lastMoving = false; }
+    return;
+  }
   if (document.activeElement !== msg) {
     if (keys.has('a') || keys.has('arrowleft')) ix -= 1; if (keys.has('d') || keys.has('arrowright')) ix += 1;
     if (keys.has('w') || keys.has('arrowup')) iy -= 1; if (keys.has('s') || keys.has('arrowdown')) iy += 1;
@@ -454,7 +517,10 @@ function render(now) {
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(worldCanvas, 0, 0);
   const list = [...players.values()].sort((a, b) => a.ry - b.ry);
+  const spr = sprites.slice().sort((a, b) => a.base - b.base); let si = 0;
+  const drawSpr = (upto) => { while (si < spr.length && spr[si].base <= upto) { const o = spr[si++]; ctx.drawImage(o.c, o.x, o.y); } };
   for (const p of list) {
+    drawSpr(p.ry);
     if (p.rx < camX - 60 || p.rx > camX + vw + 60 || p.ry < camY - 80 || p.ry > camY + vh + 80) continue;
     ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.fillRect(p.rx - 12, p.ry - 3, 24, 6); ctx.fillRect(p.rx - 9, p.ry - 5, 18, 10);
     const frame = p.moving ? (Math.floor(p.anim * 8) % 2) + 1 : 0;
@@ -465,6 +531,7 @@ function render(now) {
     roundRect(ctx, Math.round(p.rx - tw / 2), Math.round(p.ry + 6), tw, 16, p === me ? '#2f5fd0' : '#1d2340', '#ffffff');
     ctx.fillStyle = '#fff'; ctx.fillText(p.name, Math.round(p.rx), Math.round(p.ry + 14.5));
   }
+  drawSpr(Infinity);
   // bubbles on top
   for (const p of list) {
     if (!p.bubble) continue;
@@ -479,6 +546,16 @@ function render(now) {
     ctx.fillStyle = '#fff'; ctx.fillRect(p.rx - 4, by + h, 8, 2); ctx.fillRect(p.rx - 2, by + h + 2, 4, 2);
     ctx.fillStyle = '#000'; rows.forEach((r, i) => ctx.fillText(r, p.rx, by + 4 + 11 + i * 22));
   }
+  // "A: Mission" prompt above the board when standing next to it
+  const nb = nearBoard();
+  $('btnA').querySelector('small').textContent = nb && !pickerOpen() ? '📋' : '😀';
+  if (nb && !menuOpen()) {
+    const bx = (nb.x + (nb.w || 1) / 2) * TILE, by = nb.y * TILE - 64 - Math.floor(now / 300) % 2 * 2;
+    ctx.font = 'bold 13px "Courier New", monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const label = 'A: Mission', tw = Math.ceil(ctx.measureText(label).width) + 16;
+    roundRect(ctx, Math.round(bx - tw / 2), by - 10, tw, 20, '#ffcf3f', '#1d2340');
+    ctx.fillStyle = '#1d2340'; ctx.fillText(label, bx, by + 0.5);
+  }
 }
 function drawTitleBg(now) {
   const t = 32 * dpr;
@@ -491,7 +568,134 @@ function loop(now) {
   update(dt, now); render(now);
   requestAnimationFrame(loop);
 }
+// ---------- Decode Missions (client) ----------
+const MS = { round: null, endsAt: 0, top: [], last: null, myGuess: null, myCorrect: null, view: 'board', graceShown: 0 };
+const padNav = { v: 0, t: 0 };
+const mpanel = $('mpanel'), mbody = $('mp-body');
+const menuOpen = () => !mpanel.classList.contains('hidden');
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function mbtn(text, fn, cls) { const b = el('button', 'mbtn' + (cls ? ' ' + cls : ''), text); b.onclick = (e) => { e.preventDefault(); fn(); }; return b; }
+function menuItems() { return [...mbody.querySelectorAll('.mbtn:not(:disabled)')]; }
+let menuIdx = 0;
+function menuMove(d) { const it = menuItems(); if (!it.length) return; menuIdx = (menuIdx + d + it.length) % it.length; menuSel(); }
+function menuSel() { const it = menuItems(); it.forEach((b, i) => b.classList.toggle('sel', i === menuIdx)); if (it[menuIdx]) it[menuIdx].scrollIntoView({ block: 'nearest' }); }
+function menuActivate() { const it = menuItems(); if (it[menuIdx]) it[menuIdx].click(); }
+function closeMenu() { mpanel.classList.add('hidden'); }
+function openMission(view) {
+  togglePicker(false); msg.blur(); keys.clear();
+  MS.view = view || 'board'; renderMission(); mpanel.classList.remove('hidden');
+  if (view === 'board' || view === 'leader') wsSend(JSON.stringify({ t: 'm_board' }));
+}
+const amSender = () => MS.round && MS.round.senderId === myId;
+const secsLeft = () => Math.max(0, Math.ceil((MS.endsAt - performance.now()) / 1000));
+function renderMission(keepIdx) {
+  const r = MS.round, v = MS.view; mbody.innerHTML = '';
+  const add = (e) => mbody.appendChild(e);
+  if (v === 'guess' && r && !amSender()) {
+    add(el('h3', '', '🤔 What is ' + r.senderName + ' saying?'));
+    const cl = el('div', 'mclue', r.clues.length ? r.clues.join('  ') : '⏳ waiting for emoji clues...'); add(cl);
+    if (MS.myGuess != null) add(el('p', '', MS.myCorrect ? '✅ Correct! Wait for the results...' : '❌ Not quite! Wait for the reveal...'));
+    r.options.forEach((o, i) => {
+      const b = mbtn(String.fromCharCode(65 + i) + ') ' + o, () => guess(i), MS.myGuess === i ? (MS.myCorrect ? 'ok' : 'bad') : '');
+      if (MS.myGuess != null) b.disabled = true; add(b);
+    });
+    add(el('p', '', 'One guess only! Choose carefully. ⏱ ' + secsLeft() + 's'));
+    add(mbtn('✖ Close (B)', closeMenu));
+  } else if (v === 'result' && MS.last) {
+    const L = MS.last;
+    add(el('h3', '', L.winner ? `* ${L.winner} decoded it! *` : L.reason === 'stopped' ? '* Mission stopped *' : L.reason === 'sender_left' ? '* Sender left *' : "* Nobody decoded it! *"));
+    add(el('p', '', 'The secret message was:')); add(el('div', 'msecret', '"' + L.phrase + '"'));
+    add(el('p', '', L.senderName + "'s emoji clues:")); add(el('div', 'mclue', L.clues.length ? L.clues.join('  ') : '(no clues sent)'));
+    const max = Math.max(1, ...L.dist.map((d) => d.count));
+    for (const d of L.dist) { const row = el('div', 'dist' + (d.correct ? ' c' : '')); const bar = el('b'); bar.style.width = (d.count / max * 80) + 'px'; row.appendChild(bar); row.appendChild(document.createTextNode(`${d.count} ${d.correct ? '✅' : ''} ${d.text}`)); add(row); }
+    if (L.points.length) add(el('p', '', '⭐ ' + L.points.map((p) => `${p.name} +${p.pts}`).join(', ')));
+    add(el('p', '', '💬 Discuss: which emojis helped? Which were confusing?'));
+    add(mbtn('🏆 Leaderboard', () => { MS.view = 'leader'; renderMission(); }));
+    add(mbtn('✖ Close (B)', closeMenu));
+  } else if (v === 'leader') {
+    add(el('h3', '', '🏆 Top Decoders'));
+    const t = el('table', 'lb');
+    if (!MS.top.length) add(el('p', '', 'No scores yet - play a mission!'));
+    MS.top.forEach((s, i) => { const tr = el('tr'); tr.appendChild(el('td', '', ['🥇', '🥈', '🥉', '4.', '5.'][i] + ' ' + s.name)); tr.appendChild(el('td', '', s.pts + ' pts')); t.appendChild(tr); });
+    add(t);
+    add(el('p', '', 'Decode first: +3 · also correct: +1 · Sender: +2 if anyone decodes'));
+    if (MS.last) add(mbtn('📜 Last result', () => { MS.view = 'result'; renderMission(); }));
+    add(mbtn('✖ Close (B)', closeMenu));
+  } else {
+    MS.view = 'board';
+    add(el('h3', '', '📋 MISSION BOARD'));
+    if (!r) {
+      add(el('p', '', '🎤 The Sender gets a secret message and must explain it using ONLY emojis. Everyone else decodes it!'));
+      add(mbtn('🎤 Be the Sender', () => { wsSend(JSON.stringify({ t: 'm_sender' })); closeMenu(); }));
+    } else if (amSender()) {
+      add(el('p', '', '🤫 You are the Sender! Your secret message:')); add(el('div', 'msecret', '"' + r.secret + '"'));
+      add(el('p', '', 'Send emoji clues with A (the emoji picker). Do not show anyone your screen! ⏱ ' + secsLeft() + 's'));
+      add(mbtn('😀 Send emoji clues', () => { closeMenu(); togglePicker(true); }));
+    } else {
+      add(el('p', '', `🕵️ ${r.senderName} is sending a secret message. ⏱ ${secsLeft()}s`));
+      add(mbtn(MS.myGuess != null ? '✅ You guessed - view' : '🤔 Guess the message', () => { MS.view = 'guess'; menuIdx = 0; renderMission(); menuSel(); }));
+    }
+    add(mbtn('🏆 Leaderboard', () => { MS.view = 'leader'; menuIdx = 0; renderMission(); menuSel(); }));
+    if (MS.last) add(mbtn('📜 Last result', () => { MS.view = 'result'; menuIdx = 0; renderMission(); menuSel(); }));
+    add(mbtn('✖ Close (B)', closeMenu));
+  }
+  if (!keepIdx) menuIdx = 0;
+  menuIdx = Math.min(menuIdx, Math.max(0, menuItems().length - 1)); menuSel();
+}
+function guess(i) { if (MS.myGuess != null) return; wsSend(JSON.stringify({ t: 'm_guess', choice: i })); }
+function renderStrip() {
+  const r = MS.round, s = $('mstrip');
+  document.body.classList.toggle('mission', !!r);
+  s.classList.toggle('hidden', !r); if (!r) return;
+  $('ms-title').textContent = amSender() ? '🤫 YOU are the Sender!' : `🕵️ MISSION · ${r.senderName} is sending`;
+  $('ms-secret').classList.toggle('hidden', !amSender()); if (amSender()) $('ms-secret').textContent = '"' + r.secret + '"';
+  const c = $('ms-clues'); c.innerHTML = ''; for (const t of r.clues) c.appendChild(el('i', '', t));
+  if (!r.clues.length) c.textContent = '⏳';
+  c.parentElement.scrollLeft = 1e6;
+  $('ms-prog').textContent = `🗳 ${r.guessed || 0}/${r.total || 0}`;
+  const g = $('ms-guess'); g.classList.toggle('hidden', amSender() || MS.myGuess != null);
+}
+$('ms-guess').onclick = () => openMission('guess');
+$('trophy').onclick = () => openMission('leader');
+setInterval(() => {
+  if (!MS.round) return;
+  const t = $('ms-time'), left = secsLeft(); t.textContent = left + 's'; t.classList.toggle('low', left <= 10);
+}, 250);
+function missionMsg(m) {
+  switch (m.t) {
+    case 'm_round': {
+      const was = MS.round && MS.round.id;
+      MS.round = m.r;
+      if (!m.r) { renderStrip(); break; }
+      MS.endsAt = performance.now() + m.r.left;
+      if (was !== m.r.id) {
+        MS.myGuess = m.r.yourGuess; MS.myCorrect = null;
+        if (m.r.senderId === myId) { banner('* You are the Sender! *'); sysLog('🤫 Your secret: "' + m.r.secret + '" - explain it with emojis only!'); openMission('board'); }
+        else { banner(`* ${m.r.senderName} started a mission! *`); sysLog(`🕵️ Mission: decode ${m.r.senderName}'s emojis! Tap 🤔 GUESS`); if (menuOpen()) renderMission(); }
+      }
+      renderStrip(); break;
+    }
+    case 'm_clue': if (MS.round) { MS.round.clues.push(m.text); renderStrip(); if (menuOpen() && MS.view === 'guess') renderMission(true); } break;
+    case 'm_progress':
+      if (MS.round) {
+        MS.round.guessed = m.guessed; MS.round.total = m.total; MS.endsAt = performance.now() + m.left;
+        if (m.grace && MS.graceShown !== MS.round.id) { MS.graceShown = MS.round.id; banner('* Someone decoded it! Last chance! *'); }
+        renderStrip();
+      }
+      break;
+    case 'm_guessed': MS.myGuess = m.choice; MS.myCorrect = m.correct; toast(m.correct ? '✅ Correct!' : '❌ Not quite...'); renderStrip(); if (menuOpen()) renderMission(); break;
+    case 'm_end': {
+      const L = m.res; MS.round = null; MS.last = L; MS.top = L.leaderboard || MS.top; MS.myGuess = null; renderStrip();
+      banner(L.winner ? `* ${L.winner} decoded it! *` : L.reason === 'stopped' ? '* Mission stopped *' : '* Mission over! *');
+      sysLog(`📜 The message was "${L.phrase}" (clues: ${L.clues.join(' ') || 'none'})`);
+      openMission('result'); break;
+    }
+    case 'm_board': MS.top = m.top || []; if (m.last !== undefined) MS.last = m.last; if (menuOpen() && (MS.view === 'leader' || MS.view === 'board')) renderMission(true); break;
+  }
+}
+mpanel.addEventListener('pointerdown', (e) => e.stopPropagation());
+
 buildSwatches(); drawPreview();
 requestAnimationFrame(loop);
-window.__ew = { players, get me() { return me; }, sendChat, pressA, pressB };
+window.__ew = { players, get me() { return me; }, sendChat, pressA, pressB, MS, openMission };
 })();

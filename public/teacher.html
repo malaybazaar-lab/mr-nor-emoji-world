@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Teacher - Decode Missions - Mr Nor DnT</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:"Courier New",ui-monospace,monospace;background:#2b2b3a;color:#1d2340;min-height:100vh}
+.wrap{max-width:900px;margin:0 auto;padding:12px}
+.card{background:#dbe8ff;border:4px solid #1d2340;box-shadow:6px 6px 0 rgba(0,0,0,.35);padding:12px 14px;margin:0 0 14px}
+h1{color:#fff;font-size:20px;margin:6px 0 12px;text-shadow:2px 2px 0 #1d2340}h1 small{display:block;color:#ffcf3f;font-size:14px}
+h2{margin:0 0 8px;font-size:18px}
+.btn{font:inherit;font-weight:bold;font-size:17px;background:#ffcf3f;border:3px solid #1d2340;box-shadow:3px 3px 0 #1d2340;padding:10px 14px;cursor:pointer;min-height:48px;color:#1d2340}
+.btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #1d2340}.btn.red{background:#ff8a8a}.btn.green{background:#7ee08f}.btn.sm{font-size:14px;padding:4px 10px;min-height:38px}
+.btn:disabled{opacity:.5}
+input,select{font:inherit;font-size:17px;padding:8px;border:3px solid #1d2340;background:#fff;min-height:48px;max-width:100%}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0}
+.grow{flex:1;min-width:180px}
+.secret{background:#1d2340;color:#fff;font-weight:bold;font-size:20px;padding:10px;margin:6px 0}
+.clues{font-size:30px;background:#fff;border:3px solid #1d2340;padding:6px 8px;min-height:52px;word-break:break-all}
+.dist{margin:4px 0;font-size:15px}.dist .bar{display:inline-block;height:16px;background:#3f7fd9;vertical-align:middle;margin-right:6px;border:2px solid #1d2340;min-width:4px}.dist.c{font-weight:bold;color:#1e7a35}.dist.c .bar{background:#3fae5a}
+ul.ph{list-style:none;padding:0;margin:6px 0;max-height:300px;overflow:auto}ul.ph li{display:flex;gap:8px;align-items:center;justify-content:space-between;background:#fff;border:2px solid #1d2340;padding:4px 8px;margin:4px 0}
+table{border-collapse:collapse;width:100%}td{padding:6px;border-bottom:2px dashed #9fb3d9;font-size:17px}td:last-child{text-align:right;font-weight:bold}td.muted{text-align:left!important}
+.muted{opacity:.7;font-size:13px}.err{color:#c0263c;font-weight:bold}
+.hidden{display:none!important}
+#login{max-width:380px;margin:12vh auto}
+/* big screen */
+body.big{background:#1d2340}body.big .ctl{display:none}
+#bigview{display:none;color:#fff;padding:2vh 3vw}
+body.big #bigview{display:block}
+#bigview h1{font-size:3.2vw;margin:0 0 1vh;text-align:center}
+.bgrid{display:grid;grid-template-columns:2fr 1fr;gap:2vw}
+.bcard{background:#dbe8ff;color:#1d2340;border:6px solid #fff;padding:1.5vw;box-shadow:0 0 0 6px #1d2340}
+.bcard h2{font-size:2.2vw}
+.btimer{font-size:7vw;font-weight:bold;text-align:center;color:#1d2340}.btimer.low{color:#c0263c}
+.bclues{font-size:5vw;background:#fff;border:4px solid #1d2340;padding:1vw;min-height:7vw;word-break:break-all;line-height:1.3}
+.bbig{font-size:2.4vw;margin:.8vw 0}
+.bsecret{font-size:3vw;background:#1d2340;color:#ffcf3f;padding:1vw;text-align:center;font-weight:bold}
+#bigview .dist{font-size:1.8vw}#bigview .dist .bar{height:1.8vw}
+#bigview td{font-size:2.2vw}
+#exitbig{position:fixed;right:10px;bottom:10px;opacity:.5}
+@media (max-width:700px){.bgrid{grid-template-columns:1fr}#bigview h1{font-size:6vw}.bcard h2{font-size:5vw}.bclues{font-size:10vw}.btimer{font-size:14vw}.bbig,#bigview .dist,#bigview td{font-size:4.5vw}.bsecret{font-size:6vw}}
+</style>
+</head>
+<body>
+<div id="login" class="card">
+  <h2>🧑‍🏫 Teacher login</h2>
+  <p>Mr Nor DnT - Decode Missions</p>
+  <div class="row"><input id="pin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="PIN" class="grow"><button id="loginbtn" class="btn">Enter</button></div>
+  <p id="loginerr" class="err"></p>
+</div>
+
+<div id="app" class="hidden">
+ <div class="wrap ctl">
+  <h1>🧑‍🏫 Decode Missions - Teacher<small>Mr Nor DnT - School of Design and Technology</small></h1>
+  <div class="row" style="margin-bottom:12px"><button id="bigbtn" class="btn green">📺 Big screen (projector)</button><a class="btn sm" href="/" target="_blank" style="text-decoration:none;display:inline-flex;align-items:center">🎮 Open game</a><button id="logout" class="btn sm">Log out</button></div>
+
+  <div class="card">
+    <h2>🕵️ Current round</h2>
+    <div id="roundbox"></div>
+    <div class="row">
+      <select id="sender" class="grow"></select>
+      <select id="secs"><option value="60">60s</option><option value="90" selected>90s</option><option value="120">120s</option><option value="180">180s</option></select>
+    </div>
+    <div class="row"><button id="start" class="btn green">▶ Start round</button><button id="stop" class="btn red">■ Stop round</button><label class="muted"><input id="showsecret" type="checkbox" checked style="min-height:0"> show secret here</label></div>
+    <p id="msg" class="err"></p>
+  </div>
+
+  <div class="card">
+    <h2>📜 Last result</h2>
+    <div id="lastbox" class="muted">No rounds yet.</div>
+  </div>
+
+  <div class="card">
+    <h2>✍️ Phrases</h2>
+    <div class="row">
+      <label><input type="radio" name="mode" value="mixed" style="min-height:0"> Mixed (built-in + mine)</label>
+      <label><input type="radio" name="mode" value="custom" style="min-height:0"> My phrases only</label>
+    </div>
+    <p class="muted" id="modenote"></p>
+    <div class="row"><input id="newphrase" maxlength="80" placeholder="e.g. Clean up your workstation" class="grow"><button id="add" class="btn">➕ Add</button></div>
+    <ul id="phrases" class="ph"></ul>
+    <p class="muted">Custom phrases are saved to a file on the server. On Render's free plan the disk resets when the server restarts/redeploys, so keep a copy of your list.</p>
+  </div>
+
+  <div class="card">
+    <h2>🏆 Leaderboard (this session)</h2>
+    <table id="lb"></table>
+    <div class="row"><button id="reset" class="btn red sm">Reset scores</button></div>
+  </div>
+ </div>
+
+ <div id="bigview"></div>
+ <button id="exitbig" class="btn sm hidden">✖ exit big screen</button>
+</div>
+
+<script>
+(() => {
+'use strict';
+const $ = (id) => document.getElementById(id);
+let PIN = sessionStorage.getItem('ew_tpin') || '', S = null, lastFetch = 0, poll = null;
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+async function api(path, body) {
+  const r = await fetch('/teacher/api' + path, { method: body ? 'POST' : 'GET', headers: { 'content-type': 'application/json', 'x-teacher-pin': PIN }, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });
+  let j = {}; try { j = await r.json(); } catch {}
+  if (r.status === 401 || r.status === 429) { logout(j.reason || 'wrong PIN'); throw new Error(j.reason); }
+  if (!r.ok) throw new Error(j.reason || ('error ' + r.status));
+  return j;
+}
+function logout(reason) { PIN = ''; sessionStorage.removeItem('ew_tpin'); clearInterval(poll); $('app').classList.add('hidden'); $('login').classList.remove('hidden'); $('loginerr').textContent = reason || ''; document.body.classList.remove('big'); }
+async function login() {
+  PIN = $('pin').value.trim(); if (!PIN) return;
+  try { await api('/login', {}); sessionStorage.setItem('ew_tpin', PIN); show(); } catch (e) { $('loginerr').textContent = e.message; }
+}
+$('loginbtn').onclick = login; $('pin').addEventListener('keydown', (e) => { if (e.key === 'Enter') login(); });
+$('logout').onclick = () => logout('');
+function show() { $('login').classList.add('hidden'); $('app').classList.remove('hidden'); refresh(); clearInterval(poll); poll = setInterval(refresh, 1000); }
+async function refresh() { try { S = await api('/state'); lastFetch = performance.now(); render(); } catch (e) { $('msg').textContent = e.message; } }
+async function act(path, body) { $('msg').textContent = ''; try { await api(path, body || {}); } catch (e) { $('msg').textContent = '⚠ ' + e.message; } refresh(); }
+
+function distEl(dist, correctIdx, reveal, big) {
+  const box = el('div'); const max = Math.max(1, ...dist.map((d) => d.count));
+  dist.forEach((d, i) => {
+    const c = reveal && (d.correct || i === correctIdx);
+    const row = el('div', 'dist' + (c ? ' c' : '')); const bar = el('span', 'bar'); bar.style.width = (d.count / max * (big ? 30 : 40)) + (big ? 'vw' : '%');
+    row.appendChild(bar); row.appendChild(document.createTextNode(`${d.count}  ${String.fromCharCode(65 + i)}) ${d.text}${c ? '  ✅' : ''}`)); box.appendChild(row);
+  });
+  return box;
+}
+function lbTable(list, t) { t.innerHTML = ''; if (!list.length) { const tr = el('tr'); tr.appendChild(el('td', 'muted', 'No scores yet')); t.appendChild(tr); } list.forEach((s, i) => { const tr = el('tr'); tr.appendChild(el('td', '', (['🥇', '🥈', '🥉'][i] || (i + 1) + '.') + ' ' + s.name)); tr.appendChild(el('td', '', s.pts + ' pts')); t.appendChild(tr); }); return t; }
+function resultEl(L, big) {
+  const box = el('div');
+  box.appendChild(el(big ? 'h2' : 'p', '', L.winner ? `🎉 ${L.winner} decoded it!` : ({ stopped: '■ Round stopped', sender_left: '🚪 Sender left', timeout: '⏰ Time up - nobody decoded it', all_guessed: '🤔 Nobody decoded it' }[L.reason] || 'Round over')));
+  box.appendChild(el('div', big ? 'bsecret' : 'secret', '"' + L.phrase + '"'));
+  box.appendChild(el('p', big ? 'bbig' : '', `${L.senderName}'s emoji clues:`));
+  box.appendChild(el('div', big ? 'bclues' : 'clues', L.clues.join('  ') || '(none)'));
+  box.appendChild(distEl(L.dist, -1, true, big));
+  if (L.points.length) box.appendChild(el('p', big ? 'bbig' : '', '⭐ ' + L.points.map((p) => `${p.name} +${p.pts}`).join('   ')));
+  if (big) box.appendChild(el('p', 'bbig', '💬 Which emojis helped? Which were confusing? Why?'));
+  return box;
+}
+function render() {
+  if (!S) return;
+  const r = S.round;
+  // round box
+  const rb = $('roundbox'); rb.innerHTML = '';
+  if (!r) rb.appendChild(el('p', '', `No round running. ${S.players.length} player(s) online. Students start rounds at the MISSION BOARD, or start one here.`));
+  else {
+    rb.appendChild(el('p', '', `📣 Sender: ${r.senderName}   ⏱ ${Math.ceil(r.left / 1000)}s ${r.grace ? '(decoded! last chance)' : ''}   🗳 ${r.guessed}/${r.total} guessed`));
+    if ($('showsecret').checked) rb.appendChild(el('div', 'secret', '🤫 ' + r.phrase));
+    rb.appendChild(el('div', 'clues', r.clues.join('  ') || '⏳ waiting for clues'));
+    rb.appendChild(distEl(r.dist, r.correct, $('showsecret').checked));
+  }
+  $('start').disabled = !!r; $('stop').disabled = !r;
+  const sel = $('sender'), cur = sel.value; sel.innerHTML = '';
+  sel.appendChild(new Option('🎲 Random sender', ''));
+  for (const p of S.players) sel.appendChild(new Option('📣 ' + p.name, p.id));
+  sel.value = [...sel.options].some((o) => o.value === cur) ? cur : '';
+  // last
+  const lb = $('lastbox'); lb.innerHTML = ''; if (S.last) lb.appendChild(resultEl(S.last)); else lb.textContent = 'No rounds yet.';
+  // phrases
+  for (const i of document.querySelectorAll('input[name=mode]')) i.checked = i.value === S.mode;
+  $('modenote').textContent = `${S.builtinCount} built-in phrases, ${S.custom.length} of yours.` + (S.mode === 'custom' && S.custom.length === 0 ? ' ⚠ Add phrases - using built-in until you do.' : S.mode === 'custom' && S.custom.length < 4 ? ' (Wrong-answer options will be borrowed from built-in until you have 4+.)' : '');
+  const ul = $('phrases'); if (document.activeElement && ul.contains(document.activeElement)) {} else {
+    ul.innerHTML = '';
+    for (const t of S.custom) { const li = el('li'); li.appendChild(el('span', '', t)); const b = el('button', 'btn sm red', '🗑'); b.title = 'Remove'; b.onclick = () => act('/phrase/remove', { text: t }); li.appendChild(b); ul.appendChild(li); }
+    if (!S.custom.length) ul.appendChild(el('li', 'muted', 'No custom phrases yet.'));
+  }
+  lbTable(S.leaderboard, $('lb'));
+  renderBig();
+}
+function renderBig() {
+  if (!document.body.classList.contains('big')) return;
+  const v = $('bigview'), r = S.round; v.innerHTML = '';
+  v.appendChild(el('h1', '', '🕵️ DECODE MISSIONS · Mr Nor DnT'));
+  const g = el('div', 'bgrid'), main = el('div', 'bcard'), side = el('div', 'bcard');
+  if (r) {
+    main.appendChild(el('h2', '', `📣 ${r.senderName} is sending a secret message...`));
+    const t = el('div', 'btimer' + (r.left < 10500 ? ' low' : ''), Math.ceil(r.left / 1000) + 's'); main.appendChild(t);
+    main.appendChild(el('div', 'bclues', r.clues.join('  ') || '⏳'));
+    main.appendChild(el('p', 'bbig', `🗳 ${r.guessed} / ${r.total} guessed` + (r.grace ? '  ⚡ Someone decoded it! Last chance!' : '')));
+    main.appendChild(distEl(r.dist, -1, false, true));
+  } else if (S.last) { main.appendChild(resultEl(S.last, true)); }
+  else { main.appendChild(el('h2', '', 'Walk to the 📋 MISSION BOARD and press A to be the Sender!')); main.appendChild(el('p', 'bbig', 'The Sender explains a secret message using ONLY emojis. Everyone else picks what it means.')); }
+  side.appendChild(el('h2', '', '🏆 Top 5')); side.appendChild(lbTable(S.leaderboard.slice(0, 5), el('table')));
+  side.appendChild(el('p', 'bbig', '+3 first to decode · +1 also correct · +2 Sender if decoded'));
+  g.appendChild(main); g.appendChild(side); v.appendChild(g);
+}
+$('showsecret').onchange = render;
+$('start').onclick = () => act('/start', { senderId: $('sender').value ? Number($('sender').value) : null, seconds: Number($('secs').value) });
+$('stop').onclick = () => act('/stop');
+$('reset').onclick = () => { if (confirm('Reset all scores for this session?')) act('/reset'); };
+$('add').onclick = () => { const t = $('newphrase').value.trim(); if (!t) return; $('newphrase').value = ''; act('/phrase', { text: t }); };
+$('newphrase').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('add').click(); });
+for (const i of document.querySelectorAll('input[name=mode]')) i.onchange = () => act('/mode', { mode: i.value });
+$('bigbtn').onclick = () => { document.body.classList.add('big'); $('exitbig').classList.remove('hidden'); renderBig(); if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); };
+$('exitbig').onclick = () => { document.body.classList.remove('big'); $('exitbig').classList.add('hidden'); if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); };
+if (/[?&]big=1/.test(location.search)) { document.body.classList.add('big'); $('exitbig').classList.remove('hidden'); }
+if (PIN) show();
+})();
+</script>
+</body>
+</html>

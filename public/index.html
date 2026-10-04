@@ -29,7 +29,16 @@
 </div>
 
 <div id="banners"></div>
-<div id="hud" class="hidden"><span id="count">👥 1</span></div>
+<div id="hud" class="hidden"><span id="count">👥 1</span><button id="trophy" class="btn hb" title="Leaderboard">🏆</button></div>
+
+<!-- Decode Missions: clue strip (everyone) + mission panel (D-pad up/down, A = choose, B = close) -->
+<div id="mstrip" class="hidden">
+  <div class="mtop"><b id="ms-title">🕵️ MISSION</b><span id="ms-time">90</span><span id="ms-prog"></span></div>
+  <div id="ms-secret" class="hidden"></div>
+  <div class="mclues"><small>clues:</small><span id="ms-clues"></span></div>
+  <button id="ms-guess" class="btn hidden">🤔 GUESS</button>
+</div>
+<div id="mpanel" class="panel hidden" role="dialog" aria-modal="true"><div id="mp-body"></div><p class="mhint">✚ up/down · A choose · B close</p></div>
 
 <div id="chat" class="hidden">
   <div id="log"></div>
