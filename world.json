@@ -1,6 +1,6 @@
 {
   "_help": "Edit this file to upgrade the school, then restart the server. Coordinates are in TILES (1 tile = 32px). Map origin (0,0) is top-left. Solid things: buildings, trees, bushes, lamps, walls. See README.md.",
-  "title": "Mr Nor School of Engineering - Emoji World",
+  "title": "Mr Nor DnT - School of Design and Technology - Emoji World",
   "width": 64,
   "height": 44,
   "spawn": {
@@ -18,12 +18,12 @@
       "y": 0,
       "w": 64,
       "h": 8,
-      "sign": "MR NOR SCHOOL OF ENGINEERING",
+      "sign": "MR NOR DNT - SCHOOL OF DESIGN AND TECHNOLOGY",
       "wall": "#e8eef7",
       "roof": "#3f7fd9",
       "pillar": "#e0742c",
-      "signX": 16,
-      "signW": 32
+      "signX": 10,
+      "signW": 44
     },
     {
       "id": "workshop",

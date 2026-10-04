@@ -1,4 +1,4 @@
-// Mr Nor School of Engineering - Emoji World client
+// Mr Nor DnT - School of Design and Technology - Emoji World client
 (() => {
 'use strict';
 const $ = (id) => document.getElementById(id);

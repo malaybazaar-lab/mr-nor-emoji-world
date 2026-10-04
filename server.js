@@ -1,4 +1,4 @@
-// Mr Nor School of Engineering - Emoji World server
+// Mr Nor DnT - School of Design and Technology - Emoji World server
 const express = require('express');
 const http = require('http');
 const path = require('path');

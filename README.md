@@ -1,4 +1,4 @@
-# Mr Nor School of Engineering - Emoji World
+# Mr Nor DnT - School of Design and Technology - Emoji World
 
 Free-to-join browser multiplayer world (no login). Walk around the school and chat **with emojis only** - everyone has to decipher what everyone says.
 
