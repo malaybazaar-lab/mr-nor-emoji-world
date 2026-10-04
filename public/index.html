@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Mr Nor School of Engineering - Emoji World</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="join" class="panel">
+  <h1>🏫 Mr Nor School of Engineering</h1>
+  <h2>EMOJI WORLD</h2>
+  <p class="hint">Walk around and chat... but only with emojis! 🤔 Can you decipher what everyone says?</p>
+  <label>Your name <input id="name" maxlength="12" autocomplete="off" placeholder="e.g. Mateen"></label>
+  <div class="looks">
+    <div class="opt"><span>Skin</span><div id="o-skin" class="sw"></div></div>
+    <div class="opt"><span>Hair</span><div id="o-hair" class="sw"></div></div>
+    <div class="opt"><span>Shirt</span><div id="o-shirt" class="sw"></div></div>
+    <div class="opt"><span>Pants</span><div id="o-pants" class="sw"></div></div>
+    <div class="opt"><span>Hairstyle</span><div id="o-style" class="sw"></div></div>
+    <div class="opt"><span>Extra</span><div id="o-acc" class="sw"></div></div>
+  </div>
+  <canvas id="preview" width="96" height="112"></canvas>
+  <button id="go" class="btn">▶ JOIN</button>
+  <p class="small">Names: letters &amp; numbers only, max 12. Be kind! 💛</p>
+  <p id="joinerr" class="err"></p>
+</div>
+
+<div id="banners"></div>
+<div id="hud" class="hidden"><span id="count">👥 1</span></div>
+
+<div id="chat" class="hidden">
+  <div id="log"></div>
+  <div id="picker" class="hidden"><div id="quick"><em>⚡tap=send</em><span id="qrow"></span></div><div id="tabs"></div><div id="grid"></div></div>
+  <div class="row">
+    <button id="pick" class="btn sm" title="Emojis">😀</button>
+    <input id="msg" autocomplete="off" placeholder="emojis only 😎">
+    <button id="back" class="btn sm" title="Delete">⌫</button>
+    <button id="send" class="btn sm">➤</button>
+  </div>
+  <div id="toast"></div>
+</div>
+
+<div id="pad" class="hidden">
+  <div id="dpad"><i class="u"></i><i class="d"></i><i class="l"></i><i class="r"></i><i class="c"></i></div>
+  <div id="ab"><div id="btnB" class="rb"><span>B</span><small>👋</small></div><div id="btnA" class="rb"><span>A</span><small>😀</small></div></div>
+</div>
+
+<script src="emojis.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

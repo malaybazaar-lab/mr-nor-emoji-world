@@ -1,0 +1,198 @@
+{
+  "_help": "Edit this file to upgrade the school, then restart the server. Coordinates are in TILES (1 tile = 32px). Map origin (0,0) is top-left. Solid things: buildings, trees, bushes, lamps, walls. See README.md.",
+  "title": "Mr Nor School of Engineering - Emoji World",
+  "width": 64,
+  "height": 44,
+  "spawn": {
+    "x": 26,
+    "y": 10,
+    "w": 12,
+    "h": 5
+  },
+  "ground": "plaza",
+  "borderTrees": true,
+  "buildings": [
+    {
+      "id": "main",
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 8,
+      "sign": "MR NOR SCHOOL OF ENGINEERING",
+      "wall": "#e8eef7",
+      "roof": "#3f7fd9",
+      "pillar": "#e0742c",
+      "signX": 16,
+      "signW": 32
+    },
+    {
+      "id": "workshop",
+      "x": 26,
+      "y": 34,
+      "w": 12,
+      "h": 6,
+      "sign": "D&T WORKSHOP",
+      "wall": "#f4e3c1",
+      "roof": "#c0463c",
+      "pillar": "#8a5a2b"
+    }
+  ],
+  "planters": [
+    {
+      "x": 2,
+      "y": 9,
+      "w": 10,
+      "h": 6,
+      "tree": true
+    },
+    {
+      "x": 52,
+      "y": 9,
+      "w": 10,
+      "h": 6,
+      "tree": true
+    },
+    {
+      "x": 2,
+      "y": 20,
+      "w": 8,
+      "h": 8,
+      "tree": true
+    },
+    {
+      "x": 54,
+      "y": 20,
+      "w": 8,
+      "h": 8,
+      "tree": true
+    },
+    {
+      "x": 2,
+      "y": 33,
+      "w": 12,
+      "h": 8,
+      "tree": true
+    },
+    {
+      "x": 50,
+      "y": 33,
+      "w": 12,
+      "h": 8,
+      "tree": true
+    },
+    {
+      "x": 16,
+      "y": 22,
+      "w": 8,
+      "h": 5
+    },
+    {
+      "x": 40,
+      "y": 22,
+      "w": 8,
+      "h": 5
+    },
+    {
+      "x": 28,
+      "y": 24,
+      "w": 8,
+      "h": 4
+    }
+  ],
+  "trees": [
+    [
+      20,
+      15
+    ],
+    [
+      44,
+      15
+    ],
+    [
+      18,
+      36
+    ],
+    [
+      46,
+      36
+    ],
+    [
+      30,
+      20
+    ],
+    [
+      34,
+      20
+    ],
+    [
+      10,
+      17
+    ],
+    [
+      54,
+      17
+    ]
+  ],
+  "bushes": [
+    [
+      24,
+      8
+    ],
+    [
+      39,
+      8
+    ],
+    [
+      24,
+      9
+    ],
+    [
+      39,
+      9
+    ]
+  ],
+  "lamps": [
+    [
+      14,
+      9
+    ],
+    [
+      49,
+      9
+    ],
+    [
+      14,
+      18
+    ],
+    [
+      49,
+      18
+    ],
+    [
+      24,
+      30
+    ],
+    [
+      39,
+      30
+    ],
+    [
+      8,
+      30
+    ],
+    [
+      56,
+      30
+    ],
+    [
+      21,
+      40
+    ],
+    [
+      43,
+      40
+    ]
+  ],
+  "flowers": [],
+  "walls": []
+}
