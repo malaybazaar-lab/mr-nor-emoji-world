@@ -9,3 +9,9 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "20"
+      - key: TEACHER_PIN
+        sync: false
+      - key: SHEETS_URL
+        sync: false
+      - key: SHEETS_SECRET
+        sync: false

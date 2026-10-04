@@ -131,7 +131,18 @@ function broadcast(obj, except) { const s = JSON.stringify(obj); for (const p of
 
 // ---------- Decode Missions + teacher page ----------
 const { createMissions } = require('./lib/missions');
-const missions = createMissions({ players, send, broadcast, nearBoard, log: (t) => console.log(new Date().toISOString(), t) });
+const { createSheets } = require('./lib/sheets');
+const logT = (t) => console.log(new Date().toISOString(), t);
+// optional Google Sheet (apps-script/Code.gs): only active when both env vars are set
+const sheets = createSheets({ url: process.env.SHEETS_URL, secret: process.env.SHEETS_SECRET, log: logT });
+const missions = createMissions({ players, send, broadcast, nearBoard, log: logT, sheets });
+const SHEETS_SYNC_MS = parseInt(process.env.SHEETS_SYNC_MS || String(5 * 60000), 10);
+let allTime = { at: 0, scores: null };
+if (sheets) {
+  console.log('Google Sheet sync ON');
+  missions.syncPhrases();
+  setInterval(() => { missions.syncPhrases(); sheets.flush(); }, SHEETS_SYNC_MS);
+}
 const TEACHER_PIN = String(process.env.TEACHER_PIN || '1234');
 if (!process.env.TEACHER_PIN) console.log('WARNING: TEACHER_PIN not set, using default 1234');
 const pinFails = new Map(); // ip -> { n, until }
@@ -156,7 +167,23 @@ tapi.use((req, res, next) => {
   res.status(r === 'locked' ? 429 : 401).json({ ok: false, reason: r === 'locked' ? 'too many wrong PINs, wait 5 min' : 'wrong PIN' });
 });
 const reply = (res, r) => res.status(r.ok === false ? 400 : 200).json(r);
-tapi.post('/login', (req, res) => res.json({ ok: true }));
+tapi.post('/login', (req, res) => { if (sheets) missions.syncPhrases(); res.json({ ok: true }); });
+// teacher page opened: refresh phrases from the sheet (waits max ~4s so the list is fresh, never fails)
+tapi.post('/sync', async (req, res) => {
+  if (!sheets) return res.json({ ok: true, sheets: false });
+  const synced = await Promise.race([missions.syncPhrases(), new Promise((r) => setTimeout(() => r(null), 4000))]);
+  res.json({ ok: true, sheets: true, synced: !!synced, status: sheets.status() });
+});
+// all-time scores from the sheet (cached 20s)
+tapi.get('/alltime', async (req, res) => {
+  if (!sheets) return res.json({ ok: true, enabled: false, scores: [] });
+  if (!allTime.scores || Date.now() - allTime.at > 20000) {
+    const s = await sheets.getScores();
+    if (s) allTime = { at: Date.now(), scores: s };
+    else return res.json({ ok: true, enabled: true, error: (sheets.status().lastError || 'sheet unreachable'), scores: allTime.scores || [], stale: true });
+  }
+  res.json({ ok: true, enabled: true, scores: allTime.scores });
+});
 tapi.get('/state', (req, res) => res.json(missions.teacherState()));
 tapi.post('/phrase', (req, res) => reply(res, missions.addPhrase(req.body && req.body.text)));
 tapi.post('/phrase/remove', (req, res) => reply(res, missions.removePhrase(req.body && req.body.text)));

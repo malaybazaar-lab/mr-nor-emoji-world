@@ -82,13 +82,17 @@ body.big #bigview{display:block}
     <p class="muted" id="modenote"></p>
     <div class="row"><input id="newphrase" maxlength="80" placeholder="e.g. Clean up your workstation" class="grow"><button id="add" class="btn">➕ Add</button></div>
     <ul id="phrases" class="ph"></ul>
-    <p class="muted">Custom phrases are saved to a file on the server. On Render's free plan the disk resets when the server restarts/redeploys, so keep a copy of your list.</p>
+    <p class="muted" id="phrasenote">Custom phrases are saved to a file on the server. On Render's free plan the disk resets when the server restarts/redeploys, so keep a copy of your list.</p>
+    <div id="sheetbox" class="hidden"><p class="muted" id="sheetstatus"></p><div class="row"><button id="syncnow" class="btn sm">🔄 Sync with Google Sheet</button></div></div>
   </div>
 
   <div class="card">
-    <h2>🏆 Leaderboard (this session)</h2>
+    <h2>🏆 Leaderboard <span id="lbtitle">(this session)</span></h2>
+    <div class="row hidden" id="lbtabs"><button id="tabsess" class="btn sm green">This session</button><button id="taball" class="btn sm">All-time</button></div>
     <table id="lb"></table>
-    <div class="row"><button id="reset" class="btn red sm">Reset scores</button></div>
+    <table id="lball" class="hidden"></table>
+    <p id="allnote" class="muted hidden"></p>
+    <div class="row" id="resetrow"><button id="reset" class="btn red sm">Reset scores</button></div>
   </div>
  </div>
 
@@ -116,7 +120,24 @@ async function login() {
 }
 $('loginbtn').onclick = login; $('pin').addEventListener('keydown', (e) => { if (e.key === 'Enter') login(); });
 $('logout').onclick = () => logout('');
-function show() { $('login').classList.add('hidden'); $('app').classList.remove('hidden'); refresh(); clearInterval(poll); poll = setInterval(refresh, 1000); }
+function show() { $('login').classList.add('hidden'); $('app').classList.remove('hidden'); refresh(); clearInterval(poll); poll = setInterval(refresh, 1000); api('/sync', {}).then(refresh).catch(() => {}); }
+let lbTab = 'session', allTimer = null;
+const ago = (t) => t ? Math.max(0, Math.round((Date.now() - t) / 1000)) + 's ago' : 'never';
+async function loadAllTime() {
+  try {
+    const j = await api('/alltime'); const t = $('lball'); t.innerHTML = '';
+    lbTable((j.scores || []).slice(0, 30).map((x) => ({ name: x.name + `  (${x.rounds_played} rounds)`, pts: x.total_points })), t);
+    $('allnote').textContent = j.error ? '⚠ Google Sheet: ' + j.error + (j.stale ? ' (showing last known)' : '') : 'From the Scores tab of your Google Sheet.';
+  } catch (e) { $('allnote').textContent = '⚠ ' + e.message; }
+}
+function setTab(t) {
+  lbTab = t; const all = t === 'all';
+  $('lb').classList.toggle('hidden', all); $('lball').classList.toggle('hidden', !all); $('allnote').classList.toggle('hidden', !all); $('resetrow').classList.toggle('hidden', all);
+  $('tabsess').classList.toggle('green', !all); $('taball').classList.toggle('green', all); $('lbtitle').textContent = all ? '(all-time)' : '(this session)';
+  clearInterval(allTimer); if (all) { loadAllTime(); allTimer = setInterval(loadAllTime, 20000); }
+}
+$('tabsess').onclick = () => setTab('session'); $('taball').onclick = () => setTab('all');
+$('syncnow').onclick = async () => { $('sheetstatus').textContent = '🔄 syncing...'; try { await api('/sync', {}); } catch (e) {} refresh(); if (lbTab === 'all') loadAllTime(); };
 async function refresh() { try { S = await api('/state'); lastFetch = performance.now(); render(); } catch (e) { $('msg').textContent = e.message; } }
 async function act(path, body) { $('msg').textContent = ''; try { await api(path, body || {}); } catch (e) { $('msg').textContent = '⚠ ' + e.message; } refresh(); }
 
@@ -169,6 +190,11 @@ function render() {
     if (!S.custom.length) ul.appendChild(el('li', 'muted', 'No custom phrases yet.'));
   }
   lbTable(S.leaderboard, $('lb'));
+  const sh = S.sheets; $('sheetbox').classList.toggle('hidden', !sh); $('lbtabs').classList.toggle('hidden', !sh);
+  if (sh) {
+    $('phrasenote').textContent = '📊 Your phrases live in the Google Sheet "Emoji World Data" (Phrases tab). Changes here are saved there too; edits in the sheet appear here within 5 minutes (or press Sync).';
+    $('sheetstatus').textContent = `Last sync: ${ago(sh.lastSync)} · waiting to save: ${sh.pending}` + (sh.lastError && (!sh.lastOk || sh.lastErrorAt > sh.lastOk) ? ` · ⚠ ${sh.lastError} (the game keeps working; will retry)` : ' · ✅ OK');
+  }
   renderBig();
 }
 function renderBig() {

@@ -10,6 +10,8 @@ Free-to-join browser multiplayer world (no login). Walk around the school and ch
 - `public/` - client (`index.html`, `game.js` engine/renderer, `emojis.js` picker categories, `style.css`).
 - `lib/missions.js` - Decode Missions game logic (rounds, guesses, scoring, teacher API helpers); `lib/phrases.js` - built-in phrase bank (42 phrases).
 - `public/teacher.html` - teacher page served at `/teacher` (PIN protected).
+- `lib/sheets.js` - optional Google Sheet sync (see below); `apps-script/Code.gs` - the Apps Script to paste into the sheet (secret is a placeholder here - never commit the real one).
+- `test/sheets.test.js` - Google Sheet tests: `npm run test:sheets` (starts its own servers + a mock Apps Script that runs the real `Code.gs`, and also re-runs `test.js` with no sheet, with the sheet, and with the sheet unreachable).
 - `test.js` - headless test (chat, movement + Decode Missions + teacher API): `node test.js [ws://localhost:8080/ws]` (uses `TEACHER_PIN` env or `1234`; set `KEEP_SCORES=1` to skip the score-reset step on a live class server).
 - `shot.py` / `shot_mission.py` - Playwright screenshots.
 
@@ -29,6 +31,20 @@ Open `https://<your-site>/teacher` and enter the PIN (env var **`TEACHER_PIN`**,
 - Add/remove your own phrases; choose **Mixed** (built-in + yours) or **My phrases only** (wrong options are borrowed from the built-in bank until you have 4+).
 - **📺 Big screen** (or `/teacher?big=1`) for the projector: timer, clues, vote counts, results and leaderboard. The secret phrase is never shown on the big screen until the reveal.
 - Custom phrases are saved to `data/custom-phrases.json` (or `$DATA_DIR`). **Render's free plan has an ephemeral disk**: the file is lost on every restart/redeploy (and when the free instance sleeps), so keep a copy of your list. Tunable env: `MISSION_SECONDS` (default 90), `MISSION_GRACE_MS` (default 5000).
+
+### Google Sheet (optional): phrases, round log, all-time scores
+Because Render's free disk is wiped on restart, phrases and results can live in a Google Sheet (**Emoji World Data**, tabs `Phrases`, `Rounds`, `Scores`, `ReadMe`).
+1. Sheet → **Extensions → Apps Script** → paste `apps-script/Code.gs` → set `SECRET` to a long random string → Save → run `setup` once (allow permissions).
+2. **Deploy → New deployment → Web app**, Execute as **Me**, Who has access **Anyone** → copy the `/exec` URL.
+3. Render → Environment: `SHEETS_URL` = the `/exec` URL, `SHEETS_SECRET` = the same SECRET → **Manual Deploy**.
+4. After editing Code.gs later: Deploy → Manage deployments → Edit → **New version** (URL stays the same).
+
+When both env vars are set:
+- On startup, every 5 min (`SHEETS_SYNC_MS`) and whenever the teacher page opens / presses **Sync**, active rows of `Phrases` (`active` TRUE or blank) become the custom phrase list (max 200).
+- Teacher add/remove updates the game immediately and is written to the sheet in the background (remove sets `active` FALSE). Every finished round appends a `Rounds` row and adds points/rounds to `Scores`.
+- Writes go into an in-memory queue that retries (`SHEETS_RETRY_MS`, 15 s timeout `SHEETS_TIMEOUT_MS`); if the sheet is down the game carries on and the teacher page shows a warning. Requests are `GET ?action=phrases|scores&secret=…` and `POST` `text/plain` JSON `{secret, action, …}`; redirects to googleusercontent.com are followed.
+- Teacher page: Leaderboard gets an **All-time** tab (from `Scores`). The "Mixed / My phrases only" mode stays on the server.
+- Without the env vars nothing changes (phrases saved to `data/custom-phrases.json` as before).
 
 ## Controls
 - Desktop: WASD / arrow keys move, **Z = A** (open picker / send draft), **X = B** (wave / close picker), Enter = open chat.
