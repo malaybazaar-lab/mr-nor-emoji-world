@@ -13,7 +13,8 @@ Free-to-join browser multiplayer world (no login). Walk around the school and ch
 - `lib/sheets.js` - optional Google Sheet sync (see below); `apps-script/Code.gs` - the Apps Script to paste into the sheet (secret is a placeholder here - never commit the real one).
 - `test/sheets.test.js` - Google Sheet tests: `npm run test:sheets` (starts its own servers + a mock Apps Script that runs the real `Code.gs`, and also re-runs `test.js` with no sheet, with the sheet, and with the sheet unreachable).
 - `test.js` - headless test (chat, movement + Decode Missions + teacher API): `node test.js [ws://localhost:8080/ws]` (uses `TEACHER_PIN` env or `1234`; set `KEEP_SCORES=1` to skip the score-reset step on a live class server).
-- `shot.py` / `shot_mission.py` - Playwright screenshots.
+- `public/music.js` + `public/audio/ghostdance.mp3` - background music (see below).
+- `shot.py` / `shot_mission.py` / `shot_music.py` - Playwright screenshots (`shot_music.py` also checks the music overlay doesn't overlap the HUD/controls, mute + tab-hidden pause).
 
 ## Decode Missions (communication game)
 A pixel-art **MISSION BOARD** stands in the courtyard just south of spawn (`objects` in `world.json`).
@@ -45,6 +46,13 @@ When both env vars are set:
 - Writes go into an in-memory queue that retries (`SHEETS_RETRY_MS`, 15 s timeout `SHEETS_TIMEOUT_MS`); if the sheet is down the game carries on and the teacher page shows a warning. Requests are `GET ?action=phrases|scores&secret=…` and `POST` `text/plain` JSON `{secret, action, …}`; redirects to googleusercontent.com are followed.
 - Teacher page: Leaderboard gets an **All-time** tab (from `Scores`). The "Mixed / My phrases only" mode stays on the server.
 - Without the env vars nothing changes (phrases saved to `data/custom-phrases.json` as before).
+
+## Background music
+**🎵 Ghost Dance by Mr Nor Dnt** (`public/audio/ghostdance.mp3`, ~11 s clip) loops quietly in the background (volume **0.22**, `VOLUME` in `public/music.js`).
+- Starts after the **▶ JOIN** tap (phones block autoplay; on iOS the audio is unlocked inside that tap). Plays through Web Audio (`AudioBufferSourceNode`, `loop = true`) so the low volume also works on iOS (where `<audio>.volume` is ignored) and the loop has no gap: the silent padding at the start/end of the MP3 is skipped with `loopStart`/`loopEnd`. Falls back to `<audio loop playsinline>` on very old browsers.
+- Pauses when the tab/app is hidden and resumes when visible (unless muted). If iOS interrupts audio (call, Siri), the next tap resumes it. On iPhone, Web Audio follows the ring/silent switch.
+- Top-left during gameplay: the **🎵 Ghost Dance by Mr Nor Dnt** link (opens the [Spotify track](https://open.spotify.com/track/42TSSziJTTIDzJM9xs8wCI) in a new tab) and a **🔊/🔇** mute button (remembered in `localStorage` key `ew_music_muted`). The player count / 🏆 box sits under it; on phones the chat box moves down a little and the emoji picker shrinks on short screens so the D-pad and A/B stay clear. Tapping the link or mute never triggers game controls.
+- To change the song: replace `public/audio/ghostdance.mp3` (keep the name or edit `SRC` in `music.js`) and the link text/URL in `public/index.html`.
 
 ## Controls
 - Desktop: WASD / arrow keys move, **Z = A** (open picker / send draft), **X = B** (wave / close picker), Enter = open chat.

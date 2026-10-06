@@ -258,6 +258,7 @@ function join() {
   if (!name) { $('joinerr').textContent = 'Please type a name 🙂'; return; }
   localStorage.setItem('ew_name', name); localStorage.setItem('ew_look', JSON.stringify(look));
   joinName = name; retries = 0; wasFull = false;
+  if (window.EWMusic) EWMusic.unlock(); // inside the tap: unlocks audio on iOS/Android (plays once the world appears)
   $('go').disabled = true; wakeMsg('Connecting...');
   connect();
 }
@@ -299,6 +300,8 @@ function onMsg(m) {
       me = mkPlayer(m.you); players.set(myId, me);
       $('join').classList.add('hidden'); $('chat').classList.remove('hidden'); $('hud').classList.remove('hidden');
       if (isTouch) $('pad').classList.remove('hidden');
+      $('music').classList.remove('hidden'); document.body.classList.add('playing');
+      if (window.EWMusic) EWMusic.start();
       banner(`* ${me.name} joined! *`);
       sysLog(`Welcome ${me.name}! Emojis only 🤐 ➜ 😀`);
       updateCount(); break;
@@ -450,7 +453,7 @@ for (const [id, fn] of [['btnA', pressA], ['btnB', pressB]]) {
 for (const ev of ['gesturestart', 'gesturechange', 'dblclick']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
 document.addEventListener('touchmove', (e) => { if (!e.target.closest('#grid,#log,#tabs,#quick,#join,#mpanel,#mstrip')) e.preventDefault(); }, { passive: false });
 let lastTouchEnd = 0;
-document.addEventListener('touchend', (e) => { const n = Date.now(); if (n - lastTouchEnd < 300 && !e.target.closest('input,button,#grid,#qrow,#tabs')) e.preventDefault(); lastTouchEnd = n; }, { passive: false });
+document.addEventListener('touchend', (e) => { const n = Date.now(); if (n - lastTouchEnd < 300 && !e.target.closest('input,button,#grid,#qrow,#tabs,#music')) e.preventDefault(); lastTouchEnd = n; }, { passive: false });
 document.addEventListener('contextmenu', (e) => { if (e.target.closest('#pad,canvas')) e.preventDefault(); });
 
 // ---------- main loop ----------
@@ -694,6 +697,12 @@ function missionMsg(m) {
   }
 }
 mpanel.addEventListener('pointerdown', (e) => e.stopPropagation());
+// ---------- music credit + mute (top-left): never reaches the game controls ----------
+const musicBox = $('music');
+for (const ev of ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'click', 'keydown', 'keyup']) musicBox.addEventListener(ev, (e) => e.stopPropagation());
+$('mute').addEventListener('click', (e) => { e.preventDefault(); if (window.EWMusic) EWMusic.toggle(); e.currentTarget.blur(); });
+$('music-link').addEventListener('click', (e) => { e.currentTarget.blur(); keys.clear(); pad.x = pad.y = 0; });
+if (window.EWMusic) EWMusic.render();
 
 buildSwatches(); drawPreview();
 requestAnimationFrame(loop);

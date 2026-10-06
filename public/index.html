@@ -29,7 +29,11 @@
 </div>
 
 <div id="banners"></div>
-<div id="hud" class="hidden"><span id="count">👥 1</span><button id="trophy" class="btn hb" title="Leaderboard">🏆</button></div>
+<!-- top-left: music credit + mute (row 1), player count + leaderboard (row 2) -->
+<div id="tl">
+  <div id="music" class="hidden"><a id="music-link" href="https://open.spotify.com/track/42TSSziJTTIDzJM9xs8wCI" target="_blank" rel="noopener" title="Listen on Spotify">🎵 <span class="nw">Ghost Dance</span> <span class="nw">by Mr Nor Dnt</span></a><button id="mute" type="button" class="btn hb" aria-pressed="false" title="Music on - tap to mute" aria-label="Music on - tap to mute">🔊</button></div>
+  <div id="hud" class="hidden"><span id="count">👥 1</span><button id="trophy" class="btn hb" title="Leaderboard">🏆</button></div>
+</div>
 
 <!-- Decode Missions: clue strip (everyone) + mission panel (D-pad up/down, A = choose, B = close) -->
 <div id="mstrip" class="hidden">
@@ -57,6 +61,7 @@
   <div id="ab"><div id="btnB" class="rb"><span>B</span><small>👋</small></div><div id="btnA" class="rb"><span>A</span><small>😀</small></div></div>
 </div>
 
+<script src="music.js"></script>
 <script src="emojis.js"></script>
 <script src="game.js"></script>
 </body>
