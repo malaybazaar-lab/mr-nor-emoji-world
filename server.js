@@ -1,4 +1,4 @@
-// Mr Nor DnT - School of Design and Technology - Emoji World server
+// Mr Nor DnT - School of Design and Technology - public chat world server
 const express = require('express');
 const http = require('http');
 const path = require('path');
@@ -9,6 +9,7 @@ const MAX_PLAYERS = 100;
 const TILE = 32;
 const SPEED = 170;               // px per second (client uses same)
 const MAX_EMOJIS = 8;
+const TEST_TELEPORT = process.env.TEST_TELEPORT === '1'; // screenshots/tests only - never set in production
 
 // ---------- world (loaded from world.json - edit that file to change the school) ----------
 // tile codes: 0 plaza, 1 grass, 2 building, 3 tree, 4 bush, 5 lamp, 6 flowers(walkable), 8 wall, 9 object (e.g. mission board)
@@ -41,8 +42,9 @@ function makeMap() {
   for (const [x, y] of WORLD.walls || []) set(x, y, 8);
   const sp = WORLD.spawn;
   for (let y = sp.y; y < sp.y + sp.h; y++) for (let x = sp.x; x < sp.x + sp.w; x++) set(x, y, 0);
+  for (const h of WORLD.helpers || []) set(h.x, h.y, 9);
   for (const o of WORLD.objects || []) for (let y = o.y; y < o.y + (o.h || 1); y++) for (let x = o.x; x < o.x + (o.w || 1); x++) set(x, y, 9);
-  return { w: W, h: H, tile: TILE, tiles: t, solid: [...SOLID], buildings: WORLD.buildings || [], objects: WORLD.objects || [], title: WORLD.title, sign: SIGN };
+  return { w: W, h: H, tile: TILE, tiles: t, solid: [...SOLID], buildings: WORLD.buildings || [], objects: WORLD.objects || [], rooms: WORLD.rooms || [], npc: WORLD.npc || null, helpers: WORLD.helpers || [], title: WORLD.title, sign: SIGN };
 }
 const MAP = makeMap();
 function solidAt(px, py) {
@@ -119,6 +121,9 @@ function cleanLook(l) {
 const app = express();
 app.disable('x-powered-by');
 app.use(express.static(path.join(__dirname, 'public'), { maxAge: '5m' }));
+// Netlify (if the game itself is hosted there) / generic security headers; allow embedding (Netlify wrapper iframe)
+app.use((req, res, next) => { res.set('Referrer-Policy', 'strict-origin-when-cross-origin'); next(); });
+app.get('/chatfilter.js', (req, res) => res.type('application/javascript').sendFile(path.join(__dirname, 'lib', 'chat.js')));
 app.get('/health', (req, res) => res.json({ ok: true, players: players.size, missions: true }));
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 4096 });
@@ -128,6 +133,23 @@ let nextId = 1;
 function pub(p) { return { id: p.id, name: p.name, look: p.look, x: Math.round(p.x), y: Math.round(p.y), dir: p.dir, moving: p.moving }; }
 function send(ws, obj) { if (ws.readyState === 1) ws.send(JSON.stringify(obj)); }
 function broadcast(obj, except) { const s = JSON.stringify(obj); for (const p of players.values()) if (p.ws !== except && p.ws.readyState === 1) p.ws.send(s); }
+
+// ---------- chat moderation ----------
+const chatf = require('./lib/chat');
+const CHAT_GAP = parseInt(process.env.CHAT_GAP_MS || '1500', 10);
+const mod = { paused: false, muted: new Map(), banned: new Set(), bannedIps: new Set(), log: [], reports: [], nextMid: 1, blocked: [] };
+const nameKey = (n) => String(n || '').toLowerCase().replace(/\s+/g, '');
+function isMuted(p) { const u = mod.muted.get(nameKey(p.name)); if (!u) return 0; if (u < Date.now()) { mod.muted.delete(nameKey(p.name)); return 0; } return u; }
+function findPlayer(id, name) {
+  for (const p of players.values()) if ((id != null && p.id === Number(id)) || (name && nameKey(p.name) === nameKey(name))) return p;
+  return null;
+}
+function modState() {
+  const now = Date.now();
+  return { paused: mod.paused, log: mod.log.slice(-80), reports: mod.reports.slice(-50).reverse(), blocked: mod.blocked.slice(-30).reverse(),
+    muted: [...mod.muted].filter(([, u]) => u > now).map(([n, u]) => ({ name: n, left: Math.ceil((u - now) / 60000) })),
+    banned: [...mod.banned], players: [...players.values()].map((p) => ({ id: p.id, name: p.name, muted: !!isMuted(p) })) };
+}
 
 // ---------- Decode Missions + teacher page ----------
 const { createMissions } = require('./lib/missions');
@@ -191,6 +213,41 @@ tapi.post('/mode', (req, res) => reply(res, missions.setMode(req.body && req.bod
 tapi.post('/start', (req, res) => reply(res, missions.teacherStart(req.body && req.body.senderId, req.body && Number(req.body.seconds))));
 tapi.post('/stop', (req, res) => reply(res, missions.stop()));
 tapi.post('/reset', (req, res) => reply(res, missions.resetScores()));
+// chat moderation
+tapi.get('/chat', (req, res) => res.json({ ok: true, ...modState() }));
+tapi.post('/chat/pause', (req, res) => {
+  mod.paused = !!(req.body && req.body.paused);
+  broadcast({ t: 'sys', text: mod.paused ? 'Chat paused by the teacher.' : 'Chat is open again. Be kind!' , paused: mod.paused });
+  res.json({ ok: true, paused: mod.paused });
+});
+tapi.post('/chat/mute', (req, res) => {
+  const b = req.body || {}, p = findPlayer(b.id, b.name), name = p ? p.name : b.name;
+  if (!name) return res.status(400).json({ ok: false, reason: 'who?' });
+  const mins = Math.max(1, Math.min(240, Number(b.minutes) || 10));
+  mod.muted.set(nameKey(name), Date.now() + mins * 60000);
+  if (p) send(p.ws, { t: 'sys', text: `You have been muted by the teacher for ${mins} min.` });
+  res.json({ ok: true, name, minutes: mins });
+});
+tapi.post('/chat/unmute', (req, res) => {
+  const b = req.body || {}; const p = findPlayer(b.id, b.name); const name = p ? p.name : b.name;
+  mod.muted.delete(nameKey(name)); if (p) send(p.ws, { t: 'sys', text: 'You can chat again.' });
+  res.json({ ok: true });
+});
+tapi.post('/chat/kick', (req, res) => {
+  const b = req.body || {}, p = findPlayer(b.id, b.name);
+  if (!p) return res.status(400).json({ ok: false, reason: 'player not online' });
+  send(p.ws, { t: 'kicked', reason: 'Removed by the teacher.' }); setTimeout(() => p.ws.close(), 100);
+  res.json({ ok: true, name: p.name });
+});
+tapi.post('/chat/ban', (req, res) => {
+  const b = req.body || {}, p = findPlayer(b.id, b.name), name = p ? p.name : b.name;
+  if (!name) return res.status(400).json({ ok: false, reason: 'who?' });
+  mod.banned.add(nameKey(name));
+  if (p) { if (p.ip) mod.bannedIps.add(p.ip); send(p.ws, { t: 'kicked', reason: 'Banned by the teacher.' }); setTimeout(() => p.ws.close(), 100); }
+  res.json({ ok: true, name });
+});
+tapi.post('/chat/unban', (req, res) => { mod.banned.delete(nameKey(req.body && req.body.name)); mod.bannedIps.clear(); res.json({ ok: true }); });
+tapi.post('/chat/clear-reports', (req, res) => { mod.reports = []; res.json({ ok: true }); });
 app.use('/teacher/api', tapi);
 function spawn() {
   for (let i = 0; i < 50; i++) {
@@ -215,10 +272,13 @@ wss.on('connection', (ws, req) => {
     if (!m || typeof m !== 'object') return;
     if (m.t === 'join' && !me) {
       if (players.size >= MAX_PLAYERS) { send(ws, { t: 'full' }); return ws.close(); }
+      const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+      const nm = cleanName(m.name);
+      if (mod.banned.has(nameKey(nm)) || (ip && mod.bannedIps.has(ip))) { send(ws, { t: 'kicked', reason: 'You are banned from this world by the teacher.' }); return setTimeout(() => ws.close(), 100); }
       const s = spawn();
-      me = { id: nextId++, ws, name: cleanName(m.name), look: cleanLook(m.look), x: s.x, y: s.y, dir: 0, moving: false, lastMove: now, lastChat: 0 };
+      me = { ip, id: nextId++, ws, name: nm, look: cleanLook(m.look), x: s.x, y: s.y, dir: 0, moving: false, lastMove: now, lastChat: 0 };
       players.set(me.id, me);
-      send(ws, { t: 'welcome', id: me.id, you: pub(me), map: MAP, speed: SPEED, maxEmojis: MAX_EMOJIS, players: [...players.values()].filter(p => p !== me).map(pub) });
+      send(ws, { t: 'welcome', id: me.id, you: pub(me), map: MAP, speed: SPEED, maxEmojis: MAX_EMOJIS, maxLen: chatf.MAX_LEN, chatPaused: mod.paused, players: [...players.values()].filter(p => p !== me).map(pub) });
       broadcast({ t: 'joined', p: pub(me) }, ws);
       missions.onJoin(me);
       console.log(new Date().toISOString(), 'join', me.id, me.name, 'players=', players.size);
@@ -231,7 +291,7 @@ wss.on('connection', (ws, req) => {
       const dt = Math.min(1000, now - me.lastMove);
       const maxD = SPEED * dt / 1000 * 1.6 + 16;
       const d = Math.hypot(x - me.x, y - me.y);
-      if (d > maxD || blocked(x, y)) { send(ws, { t: 'correct', x: Math.round(me.x), y: Math.round(me.y) }); me.lastMove = now; return; }
+      if ((d > maxD && !TEST_TELEPORT) || blocked(x, y)) { send(ws, { t: 'correct', x: Math.round(me.x), y: Math.round(me.y) }); me.lastMove = now; return; }
       me.x = x; me.y = y; me.lastMove = now;
       me.dir = [0, 1, 2, 3].includes(m.dir) ? m.dir : 0;
       me.moving = !!m.moving;
@@ -244,13 +304,43 @@ wss.on('connection', (ws, req) => {
       return;
     }
     if (typeof m.t === 'string' && m.t.startsWith('m_')) { missions.onMessage(me, m); return; }
+    if (m.t === 'report') {
+      const e = mod.log.find((x) => x.mid === Number(m.mid));
+      if (!e || e.id === me.id) return;
+      if (mod.reports.some((r) => r.mid === e.mid && r.by === me.name)) return send(ws, { t: 'sys', text: 'Already reported. Thank you!' });
+      if (now - (me.lastReport || 0) < 3000) return;
+      me.lastReport = now;
+      mod.reports.push({ mid: e.mid, by: me.name, name: e.name, pid: e.id, text: e.text, at: now });
+      if (mod.reports.length > 200) mod.reports.shift();
+      logT(`REPORT by ${me.name}: ${e.name}: ${e.text}`);
+      return send(ws, { t: 'sys', text: 'Reported to the teacher. Thank you!' });
+    }
     if (m.t === 'chat') {
-      if (now - me.lastChat < 1000) return send(ws, { t: 'reject', reason: 'slow down (1 msg/sec)' });
-      const v = validateEmoji(m.text);
-      if (!v.ok) return send(ws, { t: 'reject', reason: v.reason });
-      me.lastChat = now;
-      broadcast({ t: 'chat', id: me.id, name: me.name, text: v.text });
-      missions.onChat(me, v.text);
+      if (typeof m.text !== 'string' || m.text.length > 1000) return;
+      if (mod.paused) return send(ws, { t: 'reject', reason: 'chat is paused by the teacher' });
+      const mu = isMuted(me);
+      if (mu) return send(ws, { t: 'reject', reason: `you are muted (${Math.ceil((mu - now) / 60000)} min left)` });
+      if (now - me.lastChat < CHAT_GAP) return send(ws, { t: 'reject', reason: 'slow down a little' });
+      const sender = missions.isSender(me);
+      let v;
+      if (sender) { // mission round: the Sender may only use emojis
+        v = validateEmoji(m.text);
+        if (!v.ok) return send(ws, { t: 'reject', reason: v.reason === 'emoji only!' ? 'mission Sender: emojis only!' : v.reason });
+      } else {
+        v = chatf.check(m.text);
+        if (!v.ok) {
+          if (v.bad) { mod.blocked.push({ name: me.name, at: now }); if (mod.blocked.length > 100) mod.blocked.shift(); }
+          return send(ws, { t: 'reject', reason: v.reason });
+        }
+        for (const bad of BLOCKED_EMOJI) if (v.text.includes(bad)) return send(ws, { t: 'reject', reason: 'that emoji is not allowed' });
+      }
+      const key = v.text.toLowerCase();
+      if (key === me.lastText && now - me.lastChat < 30000) return send(ws, { t: 'reject', reason: 'you just said that' });
+      me.lastChat = now; me.lastText = key;
+      const mid = mod.nextMid++;
+      mod.log.push({ mid, id: me.id, name: me.name, text: v.text, at: now }); if (mod.log.length > 300) mod.log.shift();
+      broadcast({ t: 'chat', mid, id: me.id, name: me.name, text: v.text });
+      if (sender) missions.onChat(me, v.text);
       return;
     }
   });
@@ -280,5 +370,5 @@ setInterval(() => {
 }, 15000);
 
 const HOST = process.env.HOST || '0.0.0.0';
-server.listen(PORT, HOST, () => console.log(`Emoji World listening on http://${HOST}:${PORT}`));
-module.exports = { validateEmoji, cleanName, nearBoard };
+server.listen(PORT, HOST, () => console.log(`Mr Nor DnT world listening on http://${HOST}:${PORT}`));
+module.exports = { validateEmoji, cleanName, nearBoard, check: chatf.check };

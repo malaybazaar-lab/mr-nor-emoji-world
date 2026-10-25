@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Teacher - Decode Missions - Mr Nor DnT</title>
+<title>Teacher - Chat &amp; Decode Missions - Mr Nor DnT</title>
 <style>
 *{box-sizing:border-box}
 body{margin:0;font-family:"Courier New",ui-monospace,monospace;background:#2b2b3a;color:#1d2340;min-height:100vh}
@@ -54,8 +54,22 @@ body.big #bigview{display:block}
 
 <div id="app" class="hidden">
  <div class="wrap ctl">
-  <h1>🧑‍🏫 Decode Missions - Teacher<small>Mr Nor DnT - School of Design and Technology</small></h1>
+  <h1>🧑‍🏫 Teacher - Chat moderation &amp; Decode Missions<small>Mr Nor DnT - School of Design and Technology</small></h1>
   <div class="row" style="margin-bottom:12px"><button id="bigbtn" class="btn green">📺 Big screen (projector)</button><a class="btn sm" href="/" target="_blank" style="text-decoration:none;display:inline-flex;align-items:center">🎮 Open game</a><button id="logout" class="btn sm">Log out</button></div>
+
+  <div class="card" id="chatcard">
+    <h2>💬 Public chat moderation</h2>
+    <div class="row"><button id="pausebtn" class="btn red">⏸ Pause chat</button><span id="pausenote" class="muted"></span></div>
+    <h2 style="margin-top:10px">🚩 Reports <button id="clearrep" class="btn sm">Clear</button></h2>
+    <ul id="reports" class="ph"></ul>
+    <h2 style="margin-top:10px">👥 Players online</h2>
+    <div class="row"><select id="mutemins"><option value="5">mute 5 min</option><option value="10" selected>mute 10 min</option><option value="30">mute 30 min</option><option value="120">mute 2 h</option></select></div>
+    <ul id="plist" class="ph"></ul>
+    <p class="muted" id="modlists"></p>
+    <h2 style="margin-top:10px">📝 Recent chat</h2>
+    <ul id="chatlog" class="ph" style="max-height:340px"></ul>
+    <p class="muted">The server already blocks swear words (English, Singlish, Malay, leetspeak), links, phone numbers and emails, and limits each player to 1 message every 1.5 s. Mute/kick/ban work by player name and reset when the server restarts.</p>
+  </div>
 
   <div class="card">
     <h2>🕵️ Current round</h2>
@@ -225,6 +239,42 @@ $('bigbtn').onclick = () => { document.body.classList.add('big'); $('exitbig').c
 $('exitbig').onclick = () => { document.body.classList.remove('big'); $('exitbig').classList.add('hidden'); if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); };
 if (/[?&]big=1/.test(location.search)) { document.body.classList.add('big'); $('exitbig').classList.remove('hidden'); }
 if (PIN) show();
+
+// ---------- chat moderation ----------
+let C = null;
+async function refreshChat() { try { C = await api('/chat'); renderChat(); } catch (e) {} }
+function modBtn(label, cls, fn) { const b = el('button', 'btn sm ' + cls, label); b.onclick = fn; return b; }
+function renderChat() {
+  if (!C) return;
+  $('pausebtn').textContent = C.paused ? '▶ Resume chat' : '⏸ Pause chat'; $('pausebtn').className = 'btn ' + (C.paused ? 'green' : 'red');
+  $('pausenote').textContent = C.paused ? 'Chat is PAUSED for everyone.' : 'Chat is open.';
+  const rp = $('reports'); rp.innerHTML = '';
+  if (!C.reports.length) rp.appendChild(el('li', 'muted', 'No reports.'));
+  for (const r of C.reports) { const li = el('li'); li.appendChild(el('span', '', `🚩 ${r.by} reported ${r.name}: "${r.text}" (${new Date(r.at).toLocaleTimeString()})`)); const d = el('span'); d.appendChild(modBtn('🔇 Mute', '', () => mact('/chat/mute', { name: r.name, minutes: Number($('mutemins').value) }))); li.appendChild(d); rp.appendChild(li); }
+  const pl = $('plist'); if (!(document.activeElement && pl.contains(document.activeElement))) {
+    pl.innerHTML = '';
+    if (!C.players.length) pl.appendChild(el('li', 'muted', 'Nobody online.'));
+    for (const p of C.players) {
+      const li = el('li'); li.appendChild(el('span', '', (p.muted ? '🔇 ' : '') + p.name)); const d = el('span');
+      d.appendChild(p.muted ? modBtn('🔊 Unmute', 'green', () => mact('/chat/unmute', { id: p.id })) : modBtn('🔇 Mute', '', () => mact('/chat/mute', { id: p.id, minutes: Number($('mutemins').value) })));
+      d.appendChild(modBtn('👢 Kick', 'red', () => { if (confirm('Kick ' + p.name + '?')) mact('/chat/kick', { id: p.id }); }));
+      d.appendChild(modBtn('⛔ Ban', 'red', () => { if (confirm('Ban ' + p.name + ' until the server restarts?')) mact('/chat/ban', { id: p.id }); }));
+      li.appendChild(d); pl.appendChild(li);
+    }
+  }
+  const ml = $('modlists'); ml.innerHTML = '';
+  if (C.muted.length) ml.appendChild(el('span', '', 'Muted: ' + C.muted.map((m) => `${m.name} (${m.left} min)`).join(', ') + '. '));
+  for (const b of C.banned) { ml.appendChild(el('span', '', ' Banned: ' + b + ' ')); ml.appendChild(modBtn('Unban', 'sm', () => mact('/chat/unban', { name: b }))); }
+  if (C.blocked.length) ml.appendChild(el('span', '', ` · Blocked rude messages: ${C.blocked.length} (latest from ${C.blocked[0].name})`));
+  const cl = $('chatlog'), atBottom = cl.scrollTop + cl.clientHeight >= cl.scrollHeight - 10; cl.innerHTML = '';
+  for (const m of C.log) { const li = el('li'); li.appendChild(el('span', '', `${new Date(m.at).toLocaleTimeString()} ${m.name}: ${m.text}`)); li.appendChild(modBtn('🔇', '', () => mact('/chat/mute', { name: m.name, minutes: Number($('mutemins').value) }))); cl.appendChild(li); }
+  if (atBottom) cl.scrollTop = cl.scrollHeight;
+}
+async function mact(path, body) { try { await api(path, body || {}); } catch (e) { alert(e.message); } refreshChat(); }
+$('pausebtn').onclick = () => mact('/chat/pause', { paused: !(C && C.paused) });
+$('clearrep').onclick = () => mact('/chat/clear-reports');
+setInterval(() => { if (PIN && !document.body.classList.contains('big')) refreshChat(); }, 2000);
+if (PIN) refreshChat();
 })();
 </script>
 </body>

@@ -1,4 +1,4 @@
-// Background music: "Ghost Dance" by Mr Nor Dnt, looped quietly.
+// Background music: "Workshop Groove" - an original chiptune loop made for this game (tools/make_music.py), looped quietly.
 // - Unlocked inside the Join tap (mobile autoplay rules / iOS), playback starts when the world appears.
 // - Web Audio (AudioBufferSourceNode, loop=true) so the volume works on iOS (audio.volume is read-only there)
 //   and the loop is gapless: leading/trailing digital silence is trimmed via loopStart/loopEnd.
@@ -6,14 +6,15 @@
 // - Pauses while the tab is hidden; mute is remembered in localStorage ('ew_music_muted').
 (() => {
   'use strict';
-  const SRC = 'audio/ghostdance.mp3', VOLUME = 0.22, KEY = 'ew_music_muted';
+  const SRC = 'audio/workshop-groove.mp3', VOLUME = 0.2, KEY = 'ew_music_muted', LOOP_LEN = 30; // seconds (16 bars @ 128 bpm)
+  let ducked = false;
   const AC = window.AudioContext || window.webkitAudioContext;
   let muted = false;
   try { muted = localStorage.getItem(KEY) === '1'; } catch (e) { /* private mode */ }
   let ac = null, gain = null, buf = null, node = null, loopStart = 0, loopEnd = 0;
   let el = null, wanted = false, unlocked = false, fetchP = null, suspendT = 0;
 
-  const desired = () => wanted && !muted && !document.hidden;
+  const desired = () => wanted && !muted && !ducked && !document.hidden;
   function fetchBuf() { if (!fetchP) fetchP = fetch(SRC).then((r) => { if (!r.ok) throw new Error('music ' + r.status); return r.arrayBuffer(); }); return fetchP; }
   function decode(ab) { // old Safari: callback-only decodeAudioData
     return new Promise((res, rej) => { const p = ac.decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); });
@@ -27,8 +28,8 @@
       let j = n - 1; while (j > last && Math.abs(d[j]) < TH) j--; last = Math.max(last, j);
     }
     if (last <= first) { loopStart = 0; loopEnd = b.duration; return; }
-    const pad = Math.round(0.005 * b.sampleRate);
-    loopStart = Math.max(0, first - pad) / b.sampleRate; loopEnd = Math.min(n, last + pad) / b.sampleRate;
+    // the loop is exactly LOOP_LEN seconds long; skip only the MP3 encoder delay at the start
+    loopStart = first / b.sampleRate; loopEnd = Math.min(b.duration, loopStart + LOOP_LEN);
   }
   function useElement() {
     if (el) return el;
@@ -95,10 +96,10 @@
   // iOS can interrupt/suspend the context (calls, Siri, other audio): any later tap/key resumes it.
   const kick = () => { if (!desired()) return; if (ac && buf && ac.state !== 'running') apply(); else if (el && el.paused) el.play().catch(() => {}); };
   addEventListener('pointerdown', kick, true); addEventListener('keydown', kick, true);
-  if (!muted) fetchBuf().catch(() => {}); // prefetch (~270 KB) so playback starts right after Join
+  if (!muted) fetchBuf().catch(() => {}); // prefetch (~360 KB) so playback starts right after Join
 
   window.EWMusic = {
-    unlock, start, setMuted, render, toggle: () => setMuted(!muted), get muted() { return muted; },
+    unlock, start, setMuted, duck: (v) => { ducked = !!v; apply(); }, render, toggle: () => setMuted(!muted), get muted() { return muted; },
     get state() { return { engine: ac && buf ? 'webaudio' : el ? 'element' : 'none', ctx: ac && ac.state, playing: ac && buf ? !!node && ac.state === 'running' && !muted : el ? !el.paused : false, volume: VOLUME, loopStart, loopEnd, muted, wanted }; },
   };
 })();

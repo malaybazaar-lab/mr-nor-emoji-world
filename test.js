@@ -46,18 +46,40 @@ function client(name) {
   ok('B receives A movement', row && Math.abs(row[1] - (a.me.x + 48)) <= 1);
   a.ws.send(JSON.stringify({ t: 'move', x: a.me.x + 2000, y: a.me.y, dir: 2, moving: true })); await wait(200);
   ok('teleport rejected with correction', a.msgs.some((m) => m.t === 'correct'));
-  // chat
-  await wait(1100);
-  a.ws.send(JSON.stringify({ t: 'chat', text: '😀👍🏽🇸🇬' })); await wait(300);
-  ok('emoji message accepted & broadcast', b.msgs.some((m) => m.t === 'chat' && m.text === '😀👍🏽🇸🇬'));
-  for (const [txt, label] of [['hello', 'text'], ['😀hi', 'mixed'], ['123', 'digits'], ['!!', 'punctuation'], ['😀😀😀😀😀😀😀😀😀', '>8 emojis'], ['🖕', 'blocked emoji']]) {
-    await wait(1100); const n = b.msgs.filter((m) => m.t === 'chat').length, k = a.msgs.length;
-    a.ws.send(JSON.stringify({ t: 'chat', text: txt })); await wait(300);
-    ok(`${label} rejected`, b.msgs.filter((m) => m.t === 'chat').length === n && a.msgs.slice(k).some((m) => m.t === 'reject'));
+  // ---------------- public text chat ----------------
+  const GAP = 1600;
+  async function say(c, text) { await wait(GAP); const n = b.msgs.length, k = c.msgs.length; c.ws.send(JSON.stringify({ t: 'chat', text })); await wait(300);
+    return { got: b.msgs.slice(n).find((m) => m.t === 'chat' && m.id === c.me.id), rej: c.msgs.slice(k).find((m) => m.t === 'reject') }; }
+  let r1 = await say(a, '  Hello   class! Meet at the  workshop 😀 ');
+  ok('free text accepted, whitespace collapsed, emoji kept', r1.got && r1.got.text === 'Hello class! Meet at the workshop 😀' && r1.got.mid > 0);
+  r1 = await say(a, '😀👍🏽🇸🇬'); ok('emoji message still accepted', r1.got && r1.got.text === '😀👍🏽🇸🇬');
+  r1 = await say(a, '<b>hi</b> & "bye"'); ok('html sent as plain text (client renders textContent)', r1.got && r1.got.text === '<b>hi</b> & "bye"');
+  r1 = await say(a, 'zero\u200Bwidth\u0007 ctrl'); ok('zero-width + control chars stripped', r1.got && r1.got.text === 'zerowidth ctrl');
+  for (const [txt, label] of [['go to www.badsite.com', 'URL'], ['https://x.io/a', 'http link'], ['add me bit.ly/abc', 'short link'], ['call 9123 4567', 'phone number'], ['+65 81234567', 'intl phone'], ['mail me a.b@gmail.com', 'email'], ['you are st00pid f u c k', 'spaced profanity'], ['sh1t', 'leetspeak profanity'], ['knn lah', 'Singlish profanity'], ['dia bodoh', 'Malay insult'], ['x'.repeat(141), '>140 chars'], ['   ', 'empty'], ['🖕', 'blocked emoji']]) {
+    r1 = await say(a, txt); ok(`${label} blocked`, !r1.got && r1.rej);
   }
-  await wait(1100);
-  a.ws.send(JSON.stringify({ t: 'chat', text: '🎉' })); a.ws.send(JSON.stringify({ t: 'chat', text: '🎉🎉' })); await wait(300);
-  ok('rate limit (2nd msg within 1s rejected)', b.msgs.filter((m) => m.t === 'chat' && m.text.startsWith('🎉')).length === 1);
+  r1 = await say(a, 'class assignment in the classroom, pass the glass'); // "class"/"ass" substrings must not trip the filter
+  ok('innocent words with bad substrings accepted (class, assignment, glass)', !!r1.got);
+  await wait(GAP);
+  a.ws.send(JSON.stringify({ t: 'chat', text: 'one' })); a.ws.send(JSON.stringify({ t: 'chat', text: 'two' })); await wait(300);
+  ok('rate limit (2nd msg within 1.5s rejected)', b.msgs.filter((m) => m.t === 'chat' && (m.text === 'one' || m.text === 'two')).length === 1);
+  r1 = await say(a, 'one'); ok('repeat message blocked', !r1.got && r1.rej && /just said/.test(r1.rej.reason));
+  // report a message
+  const ln = b.msgs.filter((m) => m.t === 'chat' && m.id === a.me.id).pop();
+  b.ws.send(JSON.stringify({ t: 'report', mid: ln.mid })); await wait(300);
+  const cs = await tapi('/chat');
+  ok('report logged for teacher', cs.status === 200 && cs.j.reports.some((x) => x.mid === ln.mid && x.by === 'Bob' && x.name === 'Alice'));
+  ok('teacher chat log has messages', cs.j.log.length >= 3);
+  ok('chat moderation API needs PIN', (await tapi('/chat', null, 'nope')).status === 401);
+  // mute / pause
+  await tapi('/chat/mute', { id: a.me.id, minutes: 1 });
+  r1 = await say(a, 'am I muted'); ok('muted player cannot chat', !r1.got && r1.rej && /muted/.test(r1.rej.reason));
+  await tapi('/chat/unmute', { id: a.me.id });
+  r1 = await say(a, 'back again'); ok('unmuted player can chat', !!r1.got);
+  await tapi('/chat/pause', { paused: true });
+  r1 = await say(a, 'paused?'); ok('teacher pause blocks chat', !r1.got && r1.rej && /paused/.test(r1.rej.reason));
+  await tapi('/chat/pause', { paused: false });
+  r1 = await say(a, 'open again'); ok('unpause allows chat', !!r1.got);
   a.ws.send(JSON.stringify({ t: 'emote', k: 'wave' })); await wait(300);
   ok('wave emote broadcast', b.msgs.some((m) => m.t === 'emote' && m.id === a.me.id));
 
@@ -92,13 +114,15 @@ function client(name) {
   ok('second sender request while active rejected', a.msgs.slice(k).some((m) => m.t === 'reject'));
   k = a.msgs.length; a.ws.send(JSON.stringify({ t: 'm_guess', choice: correct1 })); await wait(300);
   ok('sender cannot guess', a.msgs.slice(k).some((m) => m.t === 'reject'));
-  await wait(1000);
+  await wait(1600);
   a.ws.send(JSON.stringify({ t: 'chat', text: '🏫🔧🍱' }));
   ok('sender emoji chat appears as mission clue for all', !!(await waitFor(b, (m) => m.t === 'm_clue' && m.text === '🏫🔧🍱')) && !!(await waitFor(c, (m) => m.t === 'm_clue' && m.text === '🏫🔧🍱')));
-  await wait(1100);
+  await wait(1600);
   k = a.msgs.length; const nclue = b.msgs.filter((m) => m.t === 'm_clue').length;
   a.ws.send(JSON.stringify({ t: 'chat', text: ra.r.secret })); await wait(300);
-  ok('sender free-text (the answer) rejected, not a clue', a.msgs.slice(k).some((m) => m.t === 'reject') && b.msgs.filter((m) => m.t === 'm_clue').length === nclue);
+  ok('mission Sender: free text rejected (emoji-only during round), not a clue', a.msgs.slice(k).some((m) => m.t === 'reject' && /emojis only/.test(m.reason)) && b.msgs.filter((m) => m.t === 'm_clue').length === nclue);
+  await wait(1600); k = c.msgs.length; const nb0 = b.msgs.length; c.ws.send(JSON.stringify({ t: 'chat', text: 'I think it is about lunch' })); await wait(300);
+  ok('non-sender can chat normally during a round', b.msgs.slice(nb0).some((m) => m.t === 'chat' && m.text === 'I think it is about lunch'));
   k = b.msgs.length;
   b.ws.send(JSON.stringify({ t: 'm_guess', choice: ra.r.secret })); b.ws.send(JSON.stringify({ t: 'm_guess', choice: 'hello' })); b.ws.send(JSON.stringify({ t: 'm_guess', choice: 7 })); b.ws.send(JSON.stringify({ t: 'm_guess', text: 'answer' }));
   await wait(400);
@@ -166,9 +190,18 @@ function client(name) {
   c.ws.close();
   const e6 = await waitFor(b, (m) => m.t === 'm_end' && b.msgs.indexOf(m) >= kb6);
   ok('sender leaving ends round', e6 && e6.res.reason === 'sender_left');
-  await wait(1100);
-  k = b.msgs.length; const ka7 = a.msgs.length; a.ws.send(JSON.stringify({ t: 'chat', text: 'still text?' })); await wait(300);
-  ok('free text still rejected after missions', a.msgs.slice(ka7).some((m) => m.t === 'reject') && !b.msgs.slice(k).some((m) => m.t === 'chat'));
+  await wait(1600);
+  k = b.msgs.length; a.ws.send(JSON.stringify({ t: 'chat', text: 'round over, words ok' })); await wait(300);
+  ok('ex-sender can type normal text after the round', b.msgs.slice(k).some((m) => m.t === 'chat' && m.text === 'round over, words ok'));
+  // kick + ban
+  const dd = await client('Dave');
+  await tapi('/chat/kick', { id: dd.me.id }); await wait(400);
+  ok('teacher kick disconnects player', dd.msgs.some((m) => m.t === 'kicked') && dd.ws.readyState >= 2);
+  const ee = await client('Evan'); await tapi('/chat/ban', { name: 'Evan' }); await wait(400);
+  ok('teacher ban removes player', ee.msgs.some((m) => m.t === 'kicked'));
+  const ee2 = await new Promise((res) => { const w = new (require('ws'))(URL); const c2 = { msgs: [] }; w.on('message', (x) => c2.msgs.push(JSON.parse(x))); w.on('open', () => w.send(JSON.stringify({ t: 'join', name: 'Evan' }))); setTimeout(() => { res(c2); w.close(); }, 700); });
+  ok('banned name cannot rejoin', ee2.msgs.some((m) => m.t === 'kicked') && !ee2.msgs.some((m) => m.t === 'welcome'));
+  await tapi('/chat/unban', { name: 'Evan' });
 
   b.ws.close(); await wait(400);
   ok('A sees B left', a.msgs.some((m) => m.t === 'left' && m.name === 'Bob'));
